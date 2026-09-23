@@ -17,6 +17,7 @@ import { AuditService } from "../common/audit.service";
 import type { AuthUser } from "../common/auth-context";
 import { ConfigParamsService } from "../common/config-params.service";
 import { RuleViolation } from "../common/validation";
+import { applyEffects, preCheck } from "./stage-effects";
 import { PrismaService } from "../prisma.service";
 
 export interface CreateLeadInput {
@@ -24,11 +25,6 @@ export interface CreateLeadInput {
   phone: string;
   email?: string;
   address: string;
-  requiredKw: number;
-  loanRequired: boolean;
-  loanAmount?: number;
-  projectType?: string;
-  packageName?: string;
   leadSource: "DIRECT" | "SALES_PARTNER";
   partnerId?: string;
 }
@@ -73,9 +69,20 @@ export class ProjectsService {
       where: this.scope(user),
       orderBy: { createdAt: "desc" },
       take: 200,
-      include: { owner: { select: { name: true } }, partner: { select: { name: true } } },
+      include: {
+        owner: { select: { name: true } },
+        partner: { select: { name: true } },
+        assignments: { select: { role: true, user: { select: { name: true } } } },
+        siteVisit: { select: { scheduledAt: true, completedAt: true, feasible: true } },
+        terms: { select: { finalCost: true, discountPct: true, confirmedAt: true } },
+      },
     });
-    return rows.map((p) => this.toDto(p));
+    return rows.map((p) => ({
+      ...this.toDto(p),
+      team: Object.fromEntries(p.assignments.map((a) => [a.role, a.user.name])),
+      visit: p.siteVisit,
+      terms: p.terms && { finalCost: p.terms.finalCost.toString(), discountPct: p.terms.discountPct.toString(), confirmedAt: p.terms.confirmedAt },
+    }));
   }
 
   async get(user: AuthUser, id: string) {
@@ -86,13 +93,19 @@ export class ProjectsService {
         partner: { select: { name: true } },
         assignments: { include: { user: { select: { id: true, name: true } } } },
         events: { orderBy: { at: "desc" }, take: 50 },
+        siteVisit: true,
+        terms: true,
+        payments: { orderBy: { loggedAt: "desc" } },
       },
     });
     if (!p) throw new NotFoundException("Project not found.");
     return {
       ...this.toDto(p),
       assignments: p.assignments.map((a) => ({ role: a.role, userId: a.user.id, name: a.user.name, assignedAt: a.assignedAt })),
-      events: p.events.map((e) => ({ stage: e.stage, action: e.action, actorRole: e.actorRole, at: e.at, data: e.data })),
+      events: p.events.map((e) => ({ stage: e.stage, action: e.action, actorRole: e.actorRole, at: e.at })),
+      siteVisit: p.siteVisit && { ...p.siteVisit, actualKw: p.siteVisit.actualKw?.toString() ?? null },
+      terms: p.terms && { ...p.terms, finalCost: p.terms.finalCost.toString(), discountPct: p.terms.discountPct.toString() },
+      payments: p.payments.map((x) => ({ ...x, amount: x.amount.toString() })),
     };
   }
 
@@ -112,16 +125,11 @@ export class ProjectsService {
         phone: input.phone,
         email: input.email,
         address: input.address,
-        requiredKw: new Prisma.Decimal(input.requiredKw),
-        loanRequired: input.loanRequired,
-        loanAmount: input.loanRequired && input.loanAmount ? new Prisma.Decimal(input.loanAmount) : null,
-        projectType: input.projectType,
-        packageName: input.packageName,
         leadSource,
         partnerId: leadSource === "SALES_PARTNER" ? partnerId : null,
         ownerId: user.id,
         completedStages: ["LEAD_CREATED"],
-        skippedStages: initialSkipped(input.loanRequired),
+        skippedStages: [],
         events: { create: { stage: "LEAD_CREATED", action: "COMPLETED", actorId: user.id, actorRole: user.role, data: {} } },
       },
     });
@@ -139,6 +147,8 @@ export class ProjectsService {
 
     const assign = ASSIGNS[stage];
     if (assign) await this.assertAssignable(String(input[assign.field]), assign.role);
+    const dbErrors = await preCheck(this.prisma, p, stage, input);
+    if (dbErrors.length) throw new RuleViolation(dbErrors);
 
     await this.prisma.$transaction(async (tx) => {
       // Optimistic check: fail if another request completed this stage meanwhile.
@@ -158,6 +168,7 @@ export class ProjectsService {
           update: { userId, assignedBy: user.id, assignedAt: new Date() },
         });
       }
+      await applyEffects(tx, p, stage, input, user);
       await tx.stageEvent.create({
         data: { projectId: id, stage, action: "COMPLETED", actorId: user.id, actorRole: user.role, data: input as Prisma.InputJsonValue },
       });
@@ -177,6 +188,10 @@ export class ProjectsService {
     }
     const reopen = stagesReopenedByPaymentRejection();
     await this.prisma.$transaction([
+      this.prisma.payment.updateMany({
+        where: { projectId: id, kind: "ADVANCE", status: "LOGGED" },
+        data: { status: "REJECTED", verifiedById: user.id, verifiedAt: new Date(), rejectionReason: reason },
+      }),
       this.prisma.project.update({
         where: { id },
         data: { completedStages: p.completedStages.filter((s) => !reopen.includes(s as Stage)) },
@@ -241,7 +256,7 @@ export class ProjectsService {
       phone: p.phone,
       email: p.email,
       address: p.address,
-      requiredKw: p.requiredKw.toString(),
+      requiredKw: p.requiredKw?.toString() ?? null,
       loanRequired: p.loanRequired,
       loanAmount: p.loanAmount?.toString() ?? null,
       projectType: p.projectType,

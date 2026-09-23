@@ -18,6 +18,13 @@ export class UsersController {
     });
   }
 
+  /** FR-002 masters (open point 2): project types and packages, editable as config. */
+  @Get("masters")
+  async masters() {
+    const rows = await this.prisma.configParam.findMany({ where: { key: { startsWith: "masters." } } });
+    return Object.fromEntries(rows.map((r) => [r.key.replace("masters.", ""), r.value]));
+  }
+
   @Get("partners")
   @RequireModule("leads")
   partners() {

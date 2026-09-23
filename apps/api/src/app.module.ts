@@ -8,6 +8,7 @@ import { AuditService } from "./common/audit.service";
 import { ConfigParamsService } from "./common/config-params.service";
 import { DashboardController } from "./dashboard/dashboard.controller";
 import { HealthController } from "./health.controller";
+import { PaymentsController } from "./payments/payments.controller";
 import { PrismaService } from "./prisma.service";
 import { ProjectsController } from "./projects/projects.controller";
 import { ProjectsService } from "./projects/projects.service";
@@ -25,7 +26,7 @@ import { UsersController } from "./users/users.controller";
       },
     }),
   ],
-  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController],
+  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController],
   providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

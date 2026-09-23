@@ -64,6 +64,21 @@ describe("gates", () => {
     ).toBe(true);
   });
 
+  it("requires the FR-002 requirement fields", () => {
+    const p = state(["LEAD_CREATED"]);
+    const base = { requiredKw: 5, projectType: "Residential", packageName: "Standard" };
+    expect(checkCompletion("REQUIREMENT_CAPTURED", "SALES", p, {}).errors.length).toBeGreaterThanOrEqual(4);
+    expect(checkCompletion("REQUIREMENT_CAPTURED", "SALES", p, { ...base, loanRequired: true }).errors).toEqual(["Enter the loan amount."]);
+    expect(checkCompletion("REQUIREMENT_CAPTURED", "SALES", p, { ...base, loanRequired: true, loanAmount: 200000 }).ok).toBe(true);
+    expect(checkCompletion("REQUIREMENT_CAPTURED", "SALES", p, { ...base, loanRequired: false }).ok).toBe(true);
+  });
+
+  it("requires feasibility and actual capacity after the visit (FR-006)", () => {
+    const p = state(upTo("VISIT_SCHEDULED"));
+    expect(checkCompletion("VISIT_COMPLETED", "SITE_SUPERVISOR", p, { feasible: true }).ok).toBe(false);
+    expect(checkCompletion("VISIT_COMPLETED", "SITE_SUPERVISOR", p, { feasible: true, actualKw: 4.5 }).ok).toBe(true);
+  });
+
   it("system-only stages cannot be completed by people", () => {
     const p = state(STAGES.filter((s) => s !== "INCENTIVE_CALCULATED"));
     expect(checkCompletion("INCENTIVE_CALCULATED", "SALES", p).ok).toBe(false);

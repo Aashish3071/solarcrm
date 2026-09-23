@@ -32,7 +32,7 @@ export interface NavItem {
 export const WORK_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid, module: "dashboard", source: "Booklet §11", phase: "Phase 0" },
   { href: "/work", label: "My Work", icon: ListChecks, module: "myWork", source: "Addendum FR-A03, A04", phase: "Phase 2b" },
-  { href: "/leads", label: "Leads", icon: Users, module: "leads", source: "FR-001 – FR-003 · stages 1–2", phase: "Phase 1" },
+  { href: "/leads", label: "Leads", icon: Users, module: "leads", source: "FR-001 – FR-003 · stages 1–2", phase: "Phase 1A" },
   { href: "/site-visits", label: "Site Visits", icon: MapPin, module: "siteVisits", source: "FR-004 – FR-006 · stages 3–5", phase: "Phase 1" },
   { href: "/finalize", label: "Finalize & Advance", icon: FileSignature, module: "finalize", source: "FR-007 – FR-009, FR-039 · stages 6–8", phase: "Phase 1" },
   { href: "/projects", label: "Projects", icon: FolderKanban, module: "projects", source: "FRD §5 · FR-030", phase: "Phase 0" },

@@ -36,8 +36,10 @@ export class AuthGuard implements CanActivate {
     if (!user || !user.active || !isRole(user.role)) throw new UnauthorizedException();
     req.user = { id: user.id, name: user.name, email: user.email, role: user.role, partnerId: user.partnerId };
 
-    const module = this.reflector.getAllAndOverride<Module | undefined>(REQUIRED_MODULE, targets);
-    if (module && !canAccess(user.role, module)) throw new ForbiddenException("Your role cannot access this module.");
+    const modules = this.reflector.getAllAndOverride<Module[] | undefined>(REQUIRED_MODULE, targets);
+    if (modules?.length && !modules.some((m) => canAccess(user.role, m))) {
+      throw new ForbiddenException("Your role cannot access this module.");
+    }
     return true;
   }
 }

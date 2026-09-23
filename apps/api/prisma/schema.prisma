@@ -69,7 +69,8 @@ model Project {
   phone            String
   email            String?
   address          String
-  requiredKw       Decimal    @db.Decimal(8, 2)
+  /// FR-002 fields below are captured at stage 2 (Requirement Captured).
+  requiredKw       Decimal?   @db.Decimal(8, 2)
   loanRequired     Boolean    @default(false)
   loanAmount       Decimal?   @db.Decimal(12, 2)
   projectType      String?
@@ -87,6 +88,9 @@ model Project {
 
   assignments ProjectAssignment[]
   events      StageEvent[]
+  siteVisit   SiteVisit?
+  terms       SalesTerms?
+  payments    Payment[]
 
   @@index([ownerId])
   @@index([partnerId])
@@ -146,4 +150,67 @@ model ConfigParam {
   description String?
   updatedAt   DateTime @updatedAt
   updatedById String?
+}
+
+/// FR-005 / FR-006: visit schedule and site assessment.
+model SiteVisit {
+  projectId        String    @id
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scheduledAt      DateTime?
+  lateReason       String?
+  completedAt      DateTime?
+  actualKw         Decimal?  @db.Decimal(8, 2)
+  feasible         Boolean?
+  suggestedPackage String?
+  deviations       String?
+  siteNotes        String?
+}
+
+/// FR-007 / FR-008 / FR-039: final commercial terms and customer confirmation.
+model SalesTerms {
+  projectId     String    @id
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  packageName   String
+  finalCost     Decimal   @db.Decimal(12, 2)
+  discountPct   Decimal   @db.Decimal(5, 2)
+  paymentTerms  String
+  finalizedById String
+  finalizedAt   DateTime  @default(now())
+  confirmedAt   DateTime?
+  confirmedById String?
+  confirmationNote String?
+}
+
+enum PaymentKind {
+  ADVANCE
+  LOAN_INSTALMENT_1
+  LOAN_INSTALMENT_2
+  COLLECTION
+}
+
+enum PaymentStatus {
+  LOGGED
+  APPROVED
+  REJECTED
+}
+
+/// FR-009 / FR-010 / FR-036–038: Sales logs, Accounts verifies against the bank statement.
+model Payment {
+  id              String        @id @default(cuid())
+  projectId       String
+  project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind            PaymentKind
+  amount          Decimal       @db.Decimal(12, 2)
+  mode            String
+  utr             String
+  status          PaymentStatus @default(LOGGED)
+  loggedById      String
+  loggedAt        DateTime      @default(now())
+  verifiedById    String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+
+  @@index([status, loggedAt])
+  @@index([projectId])
+  @@index([utr])
 }

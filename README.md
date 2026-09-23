@@ -5,9 +5,25 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** 0 complete (foundations).
-- **Progress:** monorepo, Postgres/Redis, login and role permissions, audit log, 23-stage workflow engine with server-side FRD rules, app shell with dashboard and project views. 31 unit tests and 3 end-to-end API tests pass.
-- **Next step:** Phase 1, the working screens for Leads, Site Visits, Finalize & Advance and Payment verification (stages 1–9), then stages 10–20.
+- **Phase:** 1 in progress. Part A (stages 1–10) is done.
+- **Progress:**
+  - Phase 0: foundations (auth, roles, audit, 23-stage workflow engine, app shell).
+  - Phase 1A:
+    - Leads: kanban and list views, a New Lead form, and requirement capture.
+    - Site Visits: supervisor assignment, visit scheduling with the 24-hour reason, and the site assessment.
+    - Finalize & Advance: final terms with the 4% discount limit, customer confirmation, and the advance with its UTR.
+    - Payments: an Accounts verification queue with approve and reject, receipt history, and outstanding and collection KPIs.
+    - Project detail: a "Your next steps" panel for each role, and initiation (stage 10).
+  - Tests: 33 unit and 4 end-to-end.
+- **Next step:** Phase 1B covers stages 10–20:
+  - Project Initiation screen and team assignment
+  - Government Registration
+  - Loan Processing
+  - DISCOM
+  - Site Revisit & Design
+  - Planning & Material
+  - Installation & Completion
+  - document and photo uploads, which need an object-storage choice (open point 14)
 
 ## Layout
 
@@ -15,7 +31,7 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 |---|---|
 | `packages/shared` | Domain rules shared by API and web: roles, module permissions, FRD §6 validations, the 23-stage workflow state machine. Pure TypeScript, unit-tested. |
 | `apps/api` | NestJS + Prisma (PostgreSQL). Cookie JWT auth, role/module guard, row-level project scoping, audit log, stage-completion endpoints. |
-| `apps/web` | Next.js app shell (dashboard, projects, project detail). Proxies `/api/*` to the API. |
+| `apps/web` | Next.js app (dashboard, leads, site visits, finalize & advance, payments, projects). Proxies `/api/*` to the API. |
 | `docker-compose.yml` | Local Postgres and Redis. |
 
 ## Run locally

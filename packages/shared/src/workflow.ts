@@ -70,7 +70,16 @@ const required = (input: StageInput, fields: Record<string, string>) =>
 
 export const STAGE_DEFS: Record<Stage, StageDef> = {
   LEAD_CREATED: { number: 1, label: "Lead Created", actors: ["SALES", "SALES_PARTNER"], requires: [], frd: "FR-001" },
-  REQUIREMENT_CAPTURED: { number: 2, label: "Requirement Captured", actors: ["SALES"], requires: ["LEAD_CREATED"], frd: "FR-002" },
+  REQUIREMENT_CAPTURED: {
+    number: 2, label: "Requirement Captured", actors: ["SALES"], requires: ["LEAD_CREATED"], frd: "FR-002",
+    guard: (i) => {
+      const errors = required(i, { projectType: "Select the project type.", packageName: "Select the package." });
+      if (!(num(i.requiredKw) > 0)) errors.push("Required capacity (kW) must be greater than zero.");
+      if (typeof i.loanRequired !== "boolean") errors.push("Record whether a loan is required.");
+      else if (i.loanRequired && !(num(i.loanAmount) > 0)) errors.push("Enter the loan amount.");
+      return errors;
+    },
+  },
   SUPERVISOR_ASSIGNED: {
     number: 3, label: "Site Supervisor Assigned", actors: ["SALES"], requires: ["REQUIREMENT_CAPTURED"], frd: "FR-004",
     guard: (i) => required(i, { supervisorId: "Select a Site Supervisor." }),
@@ -84,7 +93,10 @@ export const STAGE_DEFS: Record<Stage, StageDef> = {
   },
   VISIT_COMPLETED: {
     number: 5, label: "Site Visit Completed", actors: ["SITE_SUPERVISOR"], requires: ["VISIT_SCHEDULED"], frd: "FR-006",
-    guard: (i) => (typeof i.feasible === "boolean" ? [] : ["Record whether the site is feasible."]),
+    guard: (i) => [
+      ...(typeof i.feasible === "boolean" ? [] : ["Record whether the site is feasible."]),
+      ...(num(i.actualKw) > 0 ? [] : ["Enter the feasible capacity (kW) found on site."]),
+    ],
   },
   SALES_FINALIZED: {
     number: 6, label: "Sales Finalization", actors: ["SALES"], requires: ["VISIT_COMPLETED"], frd: "FR-007, FR-039",

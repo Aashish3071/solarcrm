@@ -15,8 +15,8 @@ export const REQUIRED_MODULE = "requiredModule";
 /** Skip authentication for this route (login, health). */
 export const Public = () => SetMetadata(IS_PUBLIC, true);
 
-/** Require the caller's role to have access to a module (permissions.ts). */
-export const RequireModule = (module: Module) => SetMetadata(REQUIRED_MODULE, module);
+/** Require the caller's role to have access to at least one of these modules (permissions.ts). */
+export const RequireModule = (...modules: Module[]) => SetMetadata(REQUIRED_MODULE, modules);
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthUser => {
   return ctx.switchToHttp().getRequest().user;

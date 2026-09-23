@@ -1,0 +1,125 @@
+import Link from "next/link";
+import { VerifyForm } from "@/components/StageActions";
+import { ago, dateTime, inr } from "@/lib/format";
+import { api, type Me } from "@/lib/server-api";
+import { PAYMENT_KIND_LABEL, type Payment } from "@/lib/types";
+
+interface QueueRow {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  customerName: string;
+  kind: Payment["kind"];
+  amount: string;
+  mode: string;
+  utr: string;
+  loggedAt: string;
+}
+interface HistoryRow {
+  id: string;
+  projectId: string;
+  projectCode: string;
+  customerName: string;
+  kind: Payment["kind"];
+  amount: string;
+  utr: string;
+  status: "APPROVED" | "REJECTED";
+  rejectionReason: string | null;
+  verifiedAt: string;
+}
+interface Summary {
+  totalOutstanding: string;
+  collectionsThisMonth: string;
+  pendingVerification: number;
+}
+
+export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const { tab } = await searchParams;
+  const [me, summary, queue, history] = await Promise.all([
+    api<Me>("/auth/me"),
+    api<Summary>("/payments/summary"),
+    api<QueueRow[]>("/payments/queue"),
+    tab === "history" ? api<HistoryRow[]>("/payments/history") : Promise.resolve([] as HistoryRow[]),
+  ]);
+  const canVerify = me.role === "ACCOUNTS" || me.role === "ADMIN";
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>Payments</h1>
+          <p>Sales logs each payment; Accounts verifies it against the bank statement (FR-009, FR-010, FR-036 – FR-038).</p>
+        </div>
+      </div>
+
+      <div className="grid g4">
+        <section className="card"><h2 className="label">Total outstanding</h2><div className="stat"><b>{inr(summary.totalOutstanding)}</b><span>Confirmed contracts minus verified receipts</span></div></section>
+        <section className="card"><h2 className="label">Collections this month</h2><div className="stat"><b style={{ color: "var(--green)" }}>{inr(summary.collectionsThisMonth)}</b><span>Verified by Accounts</span></div></section>
+        <section className="card"><h2 className="label">Overdue receivables</h2><div className="stat"><b>—</b><span>Needs payment schedules (Phase 2)</span></div></section>
+        <section className="card"><h2 className="label">Pending verification</h2><div className={`stat${summary.pendingVerification ? " red" : ""}`}><b>{summary.pendingVerification}</b><span>Logged, not yet verified</span></div></section>
+      </div>
+
+      <nav className="tabs" aria-label="Payment views">
+        <Link href="/payments" aria-current={tab !== "history" ? "page" : undefined}>Verification queue</Link>
+        <Link href="/payments?tab=history" aria-current={tab === "history" ? "page" : undefined}>Receipt history</Link>
+        <span className="hint" style={{ alignSelf: "center" }}>Schedules arrive in Phase 2</span>
+      </nav>
+
+      {tab === "history" ? (
+        <section className="card flush">
+          {history.length === 0 ? <p className="empty">No verified or rejected payments yet.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Date</th><th>Project</th><th>Type</th><th>Amount</th><th>UTR</th><th>Result</th></tr></thead>
+                <tbody>
+                  {history.map((h) => (
+                    <tr key={h.id}>
+                      <td>{dateTime(h.verifiedAt)}</td>
+                      <td><Link href={`/projects/${h.projectId}`}>{h.customerName}</Link><small style={{ display: "block", color: "var(--mute)" }}>{h.projectCode}</small></td>
+                      <td>{PAYMENT_KIND_LABEL[h.kind]}</td>
+                      <td>{inr(h.amount)}</td>
+                      <td>{h.utr}</td>
+                      <td>
+                        <span className={`tag ${h.status === "APPROVED" ? "green" : "red"}`}>{h.status === "APPROVED" ? "Verified" : "Rejected"}</span>
+                        {h.rejectionReason && <small style={{ display: "block", color: "var(--mute)" }}>{h.rejectionReason}</small>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="card flush">
+          {queue.length === 0 ? <p className="empty">Nothing is waiting for verification.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Project</th><th>Type</th><th>Amount</th><th>Mode</th><th>UTR</th><th>Waiting</th><th>{canVerify ? "Decision" : "Status"}</th></tr></thead>
+                <tbody>
+                  {queue.map((q) => (
+                    <tr key={q.id}>
+                      <td><Link href={`/projects/${q.projectId}`}>{q.customerName}</Link><small style={{ display: "block", color: "var(--mute)" }}>{q.projectCode}</small></td>
+                      <td>{PAYMENT_KIND_LABEL[q.kind]}</td>
+                      <td>{inr(q.amount)}</td>
+                      <td>{q.mode}</td>
+                      <td>{q.utr}</td>
+                      <td>{ago(q.loggedAt)}</td>
+                      <td style={{ minWidth: 220 }}>
+                        {canVerify && q.kind === "ADVANCE" ? (
+                          <VerifyForm ctx={{ projectId: q.projectId, pendingAdvance: null }} compact />
+                        ) : (
+                          <span className="tag amber">Awaiting Accounts</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+    </>
+  );
+}

@@ -5,23 +5,16 @@ import { CurrentUser, RequireModule, type AuthUser } from "../common/auth-contex
 import { parse, RuleViolation } from "../common/validation";
 import { ProjectsService } from "./projects.service";
 
-// FR-002 captures these fields; which are mandatory is open point 1.
-// Default: name, phone, address and kW mandatory.
-const CreateLead = z
-  .object({
-    customerName: z.string().trim().min(1, "Customer name is required").max(120),
-    phone: z.string().trim().regex(/^[0-9+\- ]{7,16}$/, "Enter a valid phone number"),
-    email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
-    address: z.string().trim().min(1, "Installation address is required").max(500),
-    requiredKw: z.coerce.number().positive("Required kW must be greater than zero").max(10000),
-    loanRequired: z.boolean(),
-    loanAmount: z.coerce.number().positive().optional(),
-    projectType: z.string().trim().max(60).optional(),
-    packageName: z.string().trim().max(60).optional(),
-    leadSource: z.enum(["DIRECT", "SALES_PARTNER"]),
-    partnerId: z.string().optional(),
-  })
-  .refine((v) => !v.loanRequired || (v.loanAmount ?? 0) > 0, { message: "Loan amount is required when a loan is needed", path: ["loanAmount"] });
+// FR-001 lead fields. Requirement fields (FR-002) are captured at stage 2.
+// Which customer fields are mandatory is open point 1; default: name, phone, address.
+const CreateLead = z.object({
+  customerName: z.string().trim().min(1, "Customer name is required").max(120),
+  phone: z.string().trim().regex(/^[0-9+\- ]{7,16}$/, "Enter a valid phone number"),
+  email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
+  address: z.string().trim().min(1, "Installation address is required").max(500),
+  leadSource: z.enum(["DIRECT", "SALES_PARTNER"]),
+  partnerId: z.string().optional(),
+});
 
 const StageBody = z.object({ input: z.record(z.string(), z.unknown()).default({}) });
 const RejectBody = z.object({ reason: z.string().trim().min(1, "A reason is required") });
@@ -36,11 +29,13 @@ export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   @Get()
+  @RequireModule("projects", "leads")
   list(@CurrentUser() user: AuthUser) {
     return this.projects.list(user);
   }
 
   @Get(":id")
+  @RequireModule("projects", "leads")
   get(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.projects.get(user, id);
   }
