@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 1 complete (stages 1–21). **Next:** Phase 2 adds payment schedules, stage 22 collection, the stage 23 incentive engine, and the admin config UI.
+**Current phase:** Phase 2 complete (all 23 stages). **Next:** Phase 2b adds automation: routing, follow-ups, assignment and SLAs.
 
 ## System overview
 
@@ -19,6 +19,8 @@ NestJS API (:4000, modular monolith)
    ├─ Dashboard: role-scoped counts and "waiting on you"
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
+   ├─ Config (admin): rules + masters editor, per-user overrides `<key>@<userId>`, audited
+   ├─ Incentives: stage 23 results, scoped (own / partner / all)
    └─ ConfigParamsService: business rules as data (FR-043)
    │
    ▼
@@ -65,6 +67,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `DiscomApplication` | 1B | Application, status, meter, final approval (FR-021, 022, 034) |
 | `ProjectPlan` | 1B | Revisit, planned/actual dates, reschedules, material timestamps and remarks (FR-023–030) |
 | `Installation` | 1B | Execution dates, training assignee and completion (FR-031–035) |
+| `PaymentScheduleItem` | 2 | Dated milestones (payer, amount) totalling the final cost; basis for overdue (FR-007, FR-036) |
+| `IncentiveResult` | 2 | Incentive and partner commission with the rules snapshot used (FR-039–043) |
 
 ### How a stage is completed
 
@@ -81,8 +85,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 0 | Monorepo, infra, auth/RBAC, audit, workflow engine, app shell | **Done** |
 | 1A | Leads, site visits, finalize & advance, payment verification (stages 1–10) | **Done** |
 | 1B | Initiation team, Gov, Loan, DISCOM, design, planning, material, installation, documents (stages 10–21) | **Done** |
-| 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | Next |
-| 2b | Automation: routing, follow-ups, assignment, SLAs | Planned |
+| 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | **Done** |
+| 2b | Automation: routing, follow-ups, assignment, SLAs | Next |
 | 3 | Notifications, bank-statement reconciliation | Planned |
 | 3b | AI Advisor | Planned |
 | 4 | Connectors, storage hardening, reporting | Planned |
@@ -101,3 +105,6 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - Material delay (FR-027/029) is measured against the planned project start date, because the FRD does not define a separate dispatch due date.
 - The Store Manager sees every planned project (inventory works across projects); other field roles see only projects they are assigned to.
 - Final DISCOM approval (21) needs Completion (20) and a meter number.
+- Incentive interpretation (provisional, open points 10 and 11). At or below 3% discount: 1% + 30% × (3% − discount). Between 3% and 4%: linear down to 0%, which matches the 3.5% → 0.5% example. Full-partner commission = 5% + (ceiling − discount). Lead-only partners earn 0 until rules arrive. Every result stores the rules it used.
+- Stage 22 closes only when verified receipts reach the final cost and no payment is still awaiting Accounts. Stage 23 then runs as SYSTEM.
+- Overdue = amounts scheduled up to today minus verified receipts, per project.

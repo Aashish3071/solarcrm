@@ -31,7 +31,18 @@ interface HistoryRow {
 interface Summary {
   totalOutstanding: string;
   collectionsThisMonth: string;
+  overdueReceivables: string;
+  overdueProjects: number;
   pendingVerification: number;
+}
+interface ScheduleRow {
+  projectId: string;
+  projectCode: string;
+  customerName: string;
+  contractValue: string | null;
+  verified: string;
+  overdue: string;
+  items: { id: string; label: string; payer: "CUSTOMER" | "BANK"; amount: string; dueDate: string }[];
 }
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
@@ -42,6 +53,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     api<QueueRow[]>("/payments/queue"),
     tab === "history" ? api<HistoryRow[]>("/payments/history") : Promise.resolve([] as HistoryRow[]),
   ]);
+  const schedules = tab === "schedules" ? await api<ScheduleRow[]>("/payments/schedules") : [];
   const canVerify = me.role === "ACCOUNTS" || me.role === "ADMIN";
 
   return (
@@ -56,17 +68,42 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       <div className="grid g4">
         <section className="card"><h2 className="label">Total outstanding</h2><div className="stat"><b>{inr(summary.totalOutstanding)}</b><span>Confirmed contracts minus verified receipts</span></div></section>
         <section className="card"><h2 className="label">Collections this month</h2><div className="stat"><b style={{ color: "var(--green)" }}>{inr(summary.collectionsThisMonth)}</b><span>Verified by Accounts</span></div></section>
-        <section className="card"><h2 className="label">Overdue receivables</h2><div className="stat"><b>—</b><span>Needs payment schedules (Phase 2)</span></div></section>
+        <section className="card"><h2 className="label">Overdue receivables</h2><div className={`stat${Number(summary.overdueReceivables) ? " red" : ""}`}><b>{inr(summary.overdueReceivables)}</b><span>{summary.overdueProjects} project(s) past a scheduled due date</span></div></section>
         <section className="card"><h2 className="label">Pending verification</h2><div className={`stat${summary.pendingVerification ? " red" : ""}`}><b>{summary.pendingVerification}</b><span>Logged, not yet verified</span></div></section>
       </div>
 
       <nav className="tabs" aria-label="Payment views">
-        <Link href="/payments" aria-current={tab !== "history" ? "page" : undefined}>Verification queue</Link>
+        <Link href="/payments" aria-current={!tab ? "page" : undefined}>Verification queue</Link>
+        <Link href="/payments?tab=schedules" aria-current={tab === "schedules" ? "page" : undefined}>Schedules</Link>
         <Link href="/payments?tab=history" aria-current={tab === "history" ? "page" : undefined}>Receipt history</Link>
-        <span className="hint" style={{ alignSelf: "center" }}>Schedules arrive in Phase 2</span>
       </nav>
 
-      {tab === "history" ? (
+      {tab === "schedules" ? (
+        <section className="card flush">
+          {schedules.length === 0 ? <p className="empty">No payment schedules yet. Sales adds them on the project after finalizing terms.</p> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Project</th><th>Milestones</th><th>Contract</th><th>Verified</th><th>Overdue</th></tr></thead>
+                <tbody>
+                  {schedules.map((s) => (
+                    <tr key={s.projectId}>
+                      <td><Link href={`/projects/${s.projectId}`}>{s.customerName}</Link><small style={{ display: "block", color: "var(--mute)" }}>{s.projectCode}</small></td>
+                      <td>
+                        {s.items.map((i) => (
+                          <small key={i.id} style={{ display: "block" }}>{i.label} · {i.payer === "BANK" ? "Bank" : "Customer"} · {inr(i.amount)} · due {dateTime(i.dueDate).slice(0, 11)}</small>
+                        ))}
+                      </td>
+                      <td>{inr(s.contractValue)}</td>
+                      <td>{inr(s.verified)}</td>
+                      <td>{Number(s.overdue) ? <span className="tag red">{inr(s.overdue)}</span> : <span className="tag green">None</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : tab === "history" ? (
         <section className="card flush">
           {history.length === 0 ? <p className="empty">No verified or rejected payments yet.</p> : (
             <div className="table-wrap">

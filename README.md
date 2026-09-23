@@ -5,24 +5,19 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 1 (A and B) is complete. Every stage from 1 to 21 now has a working screen.
+- **Phase:** Phase 2 is complete. All 23 stages now work end to end.
 - **Progress:**
   - Phase 0: foundations.
-  - Phase 1A: lead to verified advance (stages 1–10).
-  - Phase 1B: stages 10–21:
-    - Initiation and team assignment
-    - Government registration, in manual mode
-    - Loan: application, approval, client re-confirmation and the customer/bank split
-    - DISCOM application through to final approval
-    - Site revisit and design uploads
-    - Planning with the auto end date and rescheduling
-    - Material ready, dispatched and received, with delay remarks
-    - Installation with mandatory photos
-    - Completion certificate, and client training with its certificate
-    - Loan instalments and collections, logged by Sales and verified by Accounts
-    - Document storage: local disk behind a storage interface
-  - Tests: 33 unit and 5 end-to-end.
-- **Next step:** Phase 2 adds payment schedules with overdue tracking, stage 22 (payment collection), the incentive and commission engine for stage 23, and the admin configuration UI.
+  - Phase 1: stages 1–21 with documents.
+  - Phase 2:
+    - Payment schedules: dated milestones that must add up to the final cost.
+    - Overdue receivables and a Schedules tab.
+    - Stage 22: payment collection closes only when every amount is received and verified.
+    - Stage 23: the incentive and partner commission are calculated automatically. Results are marked provisional until the client confirms the 3–4% formula and the partner rules.
+    - Settings & Data: editable rules and masters, per-salesperson overrides (FR-043), and an audit of old and new values.
+    - An Incentives page, scoped by role.
+  - Tests: 44 unit and 6 end-to-end.
+- **Next step:** Phase 2b (automation): lead auto-routing, work auto-assignment, follow-up cadences, SLA timers with escalation, the My Work screen and the Automation console.
 
 ## Layout
 

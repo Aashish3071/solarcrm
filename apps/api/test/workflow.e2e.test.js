@@ -307,3 +307,99 @@ test("loan re-confirmation and instalments", async () => {
   assert.equal((await accounts("POST", `/projects/${id}/payments/${inst1.id}/verify`, { decision: "APPROVED" })).status, 200);
   assert.equal((await pay("LOAN_INSTALMENT_2", `I2${Date.now()}`)).status, 201);
 });
+
+test("schedule, collection and incentive (Phase 2)", async () => {
+  const sales = await login("sales@solarcrm.local");
+  const admin = await login("admin@solarcrm.local");
+  const accounts = await login("accounts@solarcrm.local");
+  const partner = await login("partner@solarcrm.local");
+  const users = (await sales("GET", "/users")).body;
+  const idOf = (role) => users.find((u) => u.role === role).id;
+  const partners = (await sales("GET", "/partners")).body;
+  const sun = partners.find((x) => x.type === "FULL");
+  const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6360000002000154a24f5d0000000049454e44ae426082", "hex");
+
+  let r = await sales("POST", "/projects", { customerName: "E2E Incentive", phone: "9800000004", address: "Z", leadSource: "SALES_PARTNER", partnerId: sun.id });
+  const id = r.body.id;
+  created.push(id);
+  const adm = async (stage, input = {}) => {
+    const res = await admin("POST", `/projects/${id}/stages/${stage}/complete`, { input });
+    assert.equal(res.status, 200, `${stage}: ${JSON.stringify(res.body)}`);
+    return res;
+  };
+  const up = (type) => admin.upload(`/projects/${id}/documents`, type, PNG);
+  await adm("REQUIREMENT_CAPTURED", { requiredKw: 5, loanRequired: false, projectType: "Residential", packageName: "Standard" });
+  await adm("SUPERVISOR_ASSIGNED", { supervisorId: idOf("SITE_SUPERVISOR") });
+  await adm("VISIT_SCHEDULED", { scheduledAt: new Date(Date.now() + 3600_000).toISOString() });
+  await adm("VISIT_COMPLETED", { feasible: true, actualKw: 5 });
+  await adm("SALES_FINALIZED", { finalCost: 150000, discountPct: 2, paymentTerms: "Advance 50 / Final 50" });
+  await adm("CUSTOMER_CONFIRMED");
+
+  // FR-036: schedule must add up to the final cost; bank rows need a loan
+  const past = new Date(Date.now() - 2 * 86400_000).toISOString().slice(0, 10);
+  const future = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+  assert.equal((await sales("PUT", `/projects/${id}/schedule`, { items: [{ label: "Advance", payer: "CUSTOMER", amount: 75000, dueDate: past }] })).status, 422);
+  assert.equal((await sales("PUT", `/projects/${id}/schedule`, { items: [{ label: "All", payer: "BANK", amount: 150000, dueDate: past }] })).status, 422);
+  r = await sales("PUT", `/projects/${id}/schedule`, {
+    items: [
+      { label: "Advance", payer: "CUSTOMER", amount: 75000, dueDate: past },
+      { label: "Final", payer: "CUSTOMER", amount: 75000, dueDate: future },
+    ],
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.schedule.length, 2);
+
+  // Overdue: 75,000 due in the past, nothing verified yet
+  let sched = (await accounts("GET", "/payments/schedules")).body.find((x) => x.projectId === id);
+  assert.equal(sched.overdue, "75000.00");
+
+  await adm("ADVANCE_LOGGED", { amount: 75000, mode: "NEFT", utr: `INC${Date.now()}` });
+  await adm("PAYMENT_VERIFIED", { decision: "APPROVED" });
+  sched = (await accounts("GET", "/payments/schedules")).body.find((x) => x.projectId === id);
+  assert.equal(sched.overdue, "0.00");
+
+  await adm("PROJECT_INITIATED", { officeExecutiveId: idOf("OFFICE_EXECUTIVE") });
+  await adm("GOV_REGISTERED", { registrationNo: "GR-9", registrationDate: "2026-09-20" });
+  await adm("DISCOM_APPLIED", { applicationNo: "DC-9" });
+  await up("DESIGN");
+  await up("INSTALLATION_PLAN");
+  await adm("DESIGN_UPLOADED", { revisitAt: "2026-09-21" });
+  await adm("PROJECT_PLANNED", { startDate: future });
+  await adm("MATERIAL_READY");
+  await adm("DISPATCHED");
+  await adm("RECEIVED_AT_SITE");
+  await up("INSTALLATION_PHOTO");
+  await adm("INSTALLATION_DONE", { startedAt: "2026-09-22", endedAt: "2026-09-23" });
+  await up("COMPLETION_CERTIFICATE");
+  await adm("COMPLETED");
+
+  // FR-036/037: collection cannot close while money is outstanding or unverified
+  const collect = () => sales("POST", `/projects/${id}/stages/PAYMENTS_COLLECTED/complete`, { input: { allPaymentsVerified: true } });
+  assert.equal((await collect()).status, 422);
+  r = await sales("POST", `/projects/${id}/payments`, { kind: "COLLECTION", amount: 75000, mode: "UPI", utr: `FIN${Date.now()}` });
+  assert.equal(r.status, 201);
+  assert.equal((await collect()).status, 422);
+  const pay = r.body.payments.find((x) => x.kind === "COLLECTION");
+  assert.equal((await accounts("POST", `/projects/${id}/payments/${pay.id}/verify`, { decision: "APPROVED" })).status, 200);
+
+  // FR-043: per-user override is used for this salesperson
+  const salesId = idOf("SALES");
+  assert.equal((await admin("PUT", "/config/incentive.fixedPct", { value: 150, userId: salesId })).status, 422);
+  assert.equal((await admin("PUT", "/config/incentive.fixedPct", { value: 1, userId: salesId })).status, 200);
+
+  // Stage 22 completes and stage 23 runs automatically (FR-040/042)
+  r = await collect();
+  assert.equal(r.status, 200);
+  assert.ok(r.body.completedStages.includes("INCENTIVE_CALCULATED"));
+  assert.equal(r.body.currentStage, "FINAL_DISCOM_APPROVED"); // stage 21 runs independently of collection
+  assert.equal(r.body.incentive.incentivePct, "1.3");
+  assert.equal(r.body.incentive.incentiveAmount, "1950");
+  assert.equal(r.body.incentive.partnerCommissionAmount, "10500");
+  assert.equal(r.body.incentive.provisional, true);
+
+  // Partner sees own commission but not the in-house incentive
+  const mine = (await partner("GET", "/incentives")).body.find((x) => x.projectId === id);
+  assert.equal(mine.partnerCommissionAmount, "10500");
+  assert.equal(mine.incentiveAmount, null);
+  await admin("DELETE", `/config/incentive.fixedPct/users/${salesId}`);
+});

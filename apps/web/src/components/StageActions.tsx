@@ -9,6 +9,7 @@ import {
   AssignForm, DiscomForm, GovForm, LoanForm, LoanReconfirm, LogPaymentForm, RescheduleForm,
   SimpleStageForm, TrainingForm, VerifyPayment, dateOnly, today,
 } from "./LaterForms";
+import { CloseCollection, ScheduleForm } from "./ScheduleForm";
 
 export interface ActionContext {
   projectId: string;
@@ -103,8 +104,11 @@ export function StageActions({ p, ctx, meId }: { p: ProjectDetail; ctx: ActionCo
           note={<p className={cert ? "hint" : "notice"}>{cert ? "Signed completion certificate uploaded." : "Upload the signed completion certificate under Documents first (FR-033)."} Alerts to the Office Executive arrive with notifications (Phase 3).</p>} />;
         break;
       }
+      case "PAYMENTS_COLLECTED":
+        body = <CloseCollection p={p} />;
+        break;
       default:
-        body = <p className="hint">Built in Phase 2 (payment collection and incentives).</p>;
+        body = <p className="hint">Completed automatically by the system.</p>;
     }
     blocks.push(<Block key={s} id={s} title={title(s)} source={src}>{body}</Block>);
   }
@@ -135,6 +139,9 @@ export function StageActions({ p, ctx, meId }: { p: ProjectDetail; ctx: ActionCo
   }
   if (p.completedStages.includes("COMPLETED") && (is("PROJECT_ENGINEER") || p.install?.trainingAssigneeId === meId)) {
     blocks.push(<Block key="tr" id="tr" title="Client training" source="FR-032, FR-035"><TrainingForm p={p} people={ctx.people} role={role} meId={meId} /></Block>);
+  }
+  if (is("SALES") && p.completedStages.includes("SALES_FINALIZED") && !p.completedStages.includes("PAYMENTS_COLLECTED")) {
+    blocks.push(<Block key="sched" id="sched" title="Payment schedule" source="FR-007, FR-036"><ScheduleForm p={p} /></Block>);
   }
   if (initiated && is("SALES")) {
     blocks.push(<Block key="pay" id="pay" title="Log a payment" source="FR-020, FR-036, FR-038"><LogPaymentForm p={p} /></Block>);

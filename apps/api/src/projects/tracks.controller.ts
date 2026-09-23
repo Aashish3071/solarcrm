@@ -8,6 +8,7 @@ import {
   availableStages,
   expectedEndDate,
   validatePaymentEntry,
+  validateSchedule,
   type Role,
   type Stage,
 } from "@solarcrm/shared";
@@ -45,6 +46,11 @@ const PaymentBody = z.object({
   amount: z.coerce.number(),
   mode: z.string(),
   utr: z.string(),
+});
+const ScheduleBody = z.object({
+  items: z
+    .array(z.object({ label: z.string(), payer: z.enum(["CUSTOMER", "BANK"]), amount: z.coerce.number(), dueDate: z.string() }))
+    .max(20),
 });
 const VerifyBody = z.object({ decision: z.enum(["APPROVED", "REJECTED"]), reason: z.string().trim().optional() });
 
@@ -198,6 +204,29 @@ export class TracksController {
     if (!cert) throw new RuleViolation(["Upload the client-signed training certificate first."]);
     await this.prisma.installation.update({ where: { projectId: id }, data: { trainingCompletedAt: new Date() } });
     await this.audit.record({ actorId: user.id, action: "training.completed", entity: "Project", entityId: id });
+    return this.projects.get(user, id);
+  }
+
+  /** FR-007 / FR-036: dated payment schedule for the agreed terms; drives overdue receivables. */
+  @Put("schedule")
+  async schedule(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: unknown) {
+    const { items } = parse(ScheduleBody, body);
+    const p = await this.load(user, id, ["SALES"]);
+    const terms = await this.prisma.salesTerms.findUnique({ where: { projectId: id } });
+    if (!terms) throw new RuleViolation(["Finalize the terms before scheduling payments."]);
+    if (p.completedStages.includes("PAYMENTS_COLLECTED")) throw new RuleViolation(["Payment collection is already complete."]);
+    const errors = validateSchedule(items, Number(terms.finalCost));
+    if (items.some((i) => i.payer === "BANK") && !p.loanRequired) errors.push("Bank payments are only possible when a loan is required.");
+    if (errors.length) throw new RuleViolation(errors);
+    await this.prisma.$transaction([
+      this.prisma.paymentScheduleItem.deleteMany({ where: { projectId: id } }),
+      this.prisma.paymentScheduleItem.createMany({
+        data: items.map((it, position) => ({
+          projectId: id, position, label: it.label.trim(), payer: it.payer, amount: new Prisma.Decimal(it.amount), dueDate: new Date(it.dueDate),
+        })),
+      }),
+    ]);
+    await this.audit.record({ actorId: user.id, action: "schedule.saved", entity: "Project", entityId: id, meta: { items: items.length } });
     return this.projects.get(user, id);
   }
 

@@ -1,5 +1,6 @@
 import { Controller, Get } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { overdueAmount } from "@solarcrm/shared";
 import { CurrentUser, RequireModule, type AuthUser } from "../common/auth-context";
 import { PrismaService } from "../prisma.service";
 import { ProjectsService, projectCode } from "../projects/projects.service";
@@ -73,10 +74,56 @@ export class PaymentsController {
     ]);
     const zero = new Prisma.Decimal(0);
     const outstanding = (contracted._sum.finalCost ?? zero).minus(received._sum.amount ?? zero);
+    const overdue = await this.overdueByProject(user);
     return {
       totalOutstanding: outstanding.toString(),
       collectionsThisMonth: (month._sum.amount ?? zero).toString(),
+      overdueReceivables: overdue.reduce((s, o) => s + o.overdue, 0).toFixed(2),
+      overdueProjects: overdue.length,
       pendingVerification: pending,
     };
+  }
+
+  /** Per-project schedule with verified receipts and overdue (FR-036). */
+  @Get("schedules")
+  async schedules(@CurrentUser() user: AuthUser) {
+    const rows = await this.prisma.project.findMany({
+      where: { ...this.projects.scope(user), schedule: { some: {} } },
+      include: {
+        schedule: { orderBy: { position: "asc" } },
+        payments: { where: { status: "APPROVED" }, select: { amount: true } },
+        terms: { select: { finalCost: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map((p) => {
+      const verified = p.payments.reduce((s, x) => s + Number(x.amount), 0);
+      const items = p.schedule.map((i) => ({ amount: Number(i.amount), dueDate: i.dueDate }));
+      return {
+        projectId: p.id,
+        projectCode: projectCode(p),
+        customerName: p.customerName,
+        contractValue: p.terms?.finalCost.toString() ?? null,
+        verified: verified.toFixed(2),
+        overdue: overdueAmount(items, verified).toFixed(2),
+        items: p.schedule.map((i) => ({ id: i.id, label: i.label, payer: i.payer, amount: i.amount.toString(), dueDate: i.dueDate })),
+      };
+    });
+  }
+
+  private async overdueByProject(user: AuthUser) {
+    const rows = await this.prisma.project.findMany({
+      where: { ...this.projects.scope(user), schedule: { some: { dueDate: { lte: new Date() } } } },
+      include: { schedule: true, payments: { where: { status: "APPROVED" }, select: { amount: true } } },
+    });
+    return rows
+      .map((p) => ({
+        projectId: p.id,
+        overdue: overdueAmount(
+          p.schedule.map((i) => ({ amount: Number(i.amount), dueDate: i.dueDate })),
+          p.payments.reduce((s, x) => s + Number(x.amount), 0),
+        ),
+      }))
+      .filter((o) => o.overdue > 0);
   }
 }

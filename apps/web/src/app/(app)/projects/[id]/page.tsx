@@ -159,6 +159,37 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </section>
           )}
 
+          {p.incentive && (
+            <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="inc">
+              <div className="card-head">
+                <h2 className="label" id="inc">Incentive &amp; commission</h2>
+                {p.incentive.provisional && <span className="tag amber">Provisional</span>}
+              </div>
+              <dl className="kv">
+                {p.incentive.incentiveAmount !== undefined && (<><dt>Sales incentive</dt><dd>{inr(p.incentive.incentiveAmount)} ({Number(p.incentive.incentivePct)}%)</dd></>)}
+                <dt>Partner commission</dt><dd>{Number(p.incentive.partnerCommissionAmount) ? `${inr(p.incentive.partnerCommissionAmount)} (${Number(p.incentive.partnerCommissionPct)}%)` : "None"}</dd>
+                <dt>Calculated</dt><dd>{dateTime(p.incentive.calculatedAt)}</dd>
+              </dl>
+              {p.incentive.provisional && <p className="hint" style={{ padding: "0 22px 16px" }}>The 3–4% incentive formula and partner commission rules are awaiting client confirmation (open points 10, 11).</p>}
+            </section>
+          )}
+
+          {p.schedule.length > 0 && (
+            <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="sch">
+              <div className="card-head"><h2 className="label" id="sch">Payment schedule</h2></div>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Milestone</th><th>Payer</th><th>Amount</th><th>Due</th></tr></thead>
+                  <tbody>
+                    {p.schedule.map((x) => (
+                      <tr key={x.id}><td>{x.label}</td><td>{x.payer === "BANK" ? "Bank" : "Customer"}</td><td>{inr(x.amount)}</td><td>{day(x.dueDate)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           {p.payments.length > 0 && (
             <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="pay">
               <div className="card-head"><h2 className="label" id="pay">Payments</h2></div>

@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { Prisma, type Project, type Role as DbRole } from "@prisma/client";
 import {
   STAGE_DEFS,
+  calculateIncentive,
   availableStages,
   checkCompletion,
   currentStage,
@@ -114,6 +115,8 @@ export class ProjectsService {
         discom: true,
         plan: true,
         install: true,
+        schedule: { orderBy: { position: "asc" } },
+        incentive: true,
       },
     });
     if (!p) throw new NotFoundException("Project not found.");
@@ -139,6 +142,24 @@ export class ProjectsService {
       discom: p.discom,
       plan: p.plan,
       install: p.install,
+      schedule: p.schedule.map((x) => ({ ...x, amount: x.amount.toString() })),
+      // Sales Partners see only their commission; incentive of in-house staff is not shown to them.
+      incentive:
+        p.incentive && user.role !== "SALES_PARTNER"
+          ? {
+              incentivePct: p.incentive.incentivePct.toString(),
+              incentiveAmount: p.incentive.incentiveAmount.toString(),
+              partnerCommissionPct: p.incentive.partnerCommissionPct.toString(),
+              partnerCommissionAmount: p.incentive.partnerCommissionAmount.toString(),
+              provisional: p.incentive.provisional,
+              calculatedAt: p.incentive.calculatedAt,
+            }
+          : p.incentive && {
+              partnerCommissionPct: p.incentive.partnerCommissionPct.toString(),
+              partnerCommissionAmount: p.incentive.partnerCommissionAmount.toString(),
+              provisional: p.incentive.provisional,
+              calculatedAt: p.incentive.calculatedAt,
+            },
     };
   }
 
@@ -209,7 +230,53 @@ export class ProjectsService {
       });
     });
     await this.audit.record({ actorId: user.id, action: "project.stage_completed", entity: "Project", entityId: id, meta: { stage } });
+    if (stage === "PAYMENTS_COLLECTED") await this.calculateIncentive(id);
     return this.get(user, id);
+  }
+
+  /**
+   * Stage 23 is completed by the system (FR-039 – FR-043): once collection is
+   * complete the incentive and partner commission are calculated with the rules
+   * in force now, and those rules are stored with the result.
+   */
+  async calculateIncentive(id: string) {
+    const p = await this.prisma.project.findUniqueOrThrow({ where: { id }, include: { terms: true, partner: true } });
+    const state = await this.state(p);
+    const check = checkCompletion("INCENTIVE_CALCULATED", "SYSTEM", state);
+    if (!check.ok || !p.terms) return;
+    const rules = await this.config.incentiveRules(p.ownerId);
+    const r = calculateIncentive({
+      orderValue: Number(p.terms.finalCost),
+      discountPct: Number(p.terms.discountPct),
+      partnerType: p.partner?.type ?? null,
+      rules,
+    });
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.project.updateMany({
+        where: { id, NOT: { completedStages: { has: "INCENTIVE_CALCULATED" } } },
+        data: { completedStages: { push: "INCENTIVE_CALCULATED" } },
+      });
+      if (updated.count === 0) return;
+      await tx.incentiveResult.create({
+        data: {
+          projectId: id,
+          salesUserId: p.ownerId,
+          partnerId: p.partnerId,
+          orderValue: p.terms!.finalCost,
+          discountPct: p.terms!.discountPct,
+          incentivePct: new Prisma.Decimal(r.incentivePct),
+          incentiveAmount: new Prisma.Decimal(r.incentiveAmount),
+          partnerCommissionPct: new Prisma.Decimal(r.partnerCommissionPct),
+          partnerCommissionAmount: new Prisma.Decimal(r.partnerCommissionAmount),
+          rules: { ...rules },
+          provisional: r.provisional,
+        },
+      });
+      await tx.stageEvent.create({
+        data: { projectId: id, stage: "INCENTIVE_CALCULATED", action: "COMPLETED", actorId: null, actorRole: "SYSTEM", data: { ...r } },
+      });
+    });
+    await this.audit.record({ action: "incentive.calculated", entity: "Project", entityId: id, meta: { ...r } });
   }
 
   /** FR-010: Accounts rejects the logged payment; Sales must log it again. */

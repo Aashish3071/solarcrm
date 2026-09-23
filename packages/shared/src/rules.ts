@@ -92,3 +92,35 @@ export function expectedEndDate(start: Date, durationDays: number): Date {
   end.setUTCDate(end.getUTCDate() + durationDays);
   return end;
 }
+
+export interface ScheduleItemInput {
+  label: string;
+  payer: "CUSTOMER" | "BANK";
+  amount: number;
+  dueDate: string;
+}
+
+/**
+ * FR-007 / FR-036: payment schedule for the agreed terms. Items must be
+ * complete and add up to the final contract value.
+ */
+export function validateSchedule(items: ScheduleItemInput[], contractValue: number): string[] {
+  if (items.length === 0) return ["Add at least one scheduled payment."];
+  const errors: string[] = [];
+  items.forEach((it, i) => {
+    if (!it.label?.trim()) errors.push(`Row ${i + 1}: enter a label.`);
+    if (!(it.amount > 0)) errors.push(`Row ${i + 1}: amount must be greater than zero.`);
+    if (!it.dueDate || Number.isNaN(new Date(it.dueDate).getTime())) errors.push(`Row ${i + 1}: enter a due date.`);
+  });
+  const total = Math.round(items.reduce((s, it) => s + (it.amount || 0), 0) * 100) / 100;
+  if (Math.abs(total - contractValue) > 0.01) {
+    errors.push(`Scheduled total ₹${total.toLocaleString("en-IN")} must equal the final cost ₹${contractValue.toLocaleString("en-IN")}.`);
+  }
+  return errors;
+}
+
+/** Overdue = amount scheduled on or before today minus verified receipts (never negative). */
+export function overdueAmount(items: { amount: number; dueDate: Date }[], verifiedTotal: number, today = new Date()): number {
+  const due = items.filter((i) => i.dueDate.getTime() <= today.getTime()).reduce((s, i) => s + i.amount, 0);
+  return Math.max(0, Math.round((due - verifiedTotal) * 100) / 100);
+}

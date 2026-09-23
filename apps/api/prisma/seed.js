@@ -23,6 +23,7 @@ const CONFIG = [
   ["incentive.fixedPct", 1, "FR-040: fixed in-house incentive at discount up to 3% (%)"],
   ["incentive.marginSharePct", 30, "FR-040: share of remaining margin at discount up to 3% (%)"],
   ["partner.fullCommissionPct", 5, "FR-042: Full Sales Partner commission (%) — example value from FRD"],
+  ["incentive.fullIncentiveUpToPct", 3, "FR-040: discount up to which the full incentive formula applies (%)"],
   ["planning.defaultDurationDays", 12, "FR-026: days from start to expected end (placeholder, open point 7)"],
   // Open point 2: placeholder masters until the client supplies the real lists.
   ["masters.projectTypes", ["Residential", "Commercial"], "FR-002: project types (placeholder)"],

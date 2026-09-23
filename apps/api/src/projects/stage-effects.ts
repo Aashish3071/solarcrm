@@ -40,6 +40,17 @@ export async function serverFacts(db: Tx, project: Project, stage: Stage, durati
         clientReconfirmed: !!loan?.clientReconfirmedAt,
       };
     }
+    case "PAYMENTS_COLLECTED": {
+      // FR-036/037: every agreed amount received and verified, nothing still waiting on Accounts.
+      const [terms, approved, pending, scheduled] = await Promise.all([
+        db.salesTerms.findUnique({ where: { projectId: project.id } }),
+        db.payment.aggregate({ _sum: { amount: true }, where: { projectId: project.id, status: "APPROVED" } }),
+        db.payment.count({ where: { projectId: project.id, status: "LOGGED" } }),
+        db.paymentScheduleItem.count({ where: { projectId: project.id } }),
+      ]);
+      const received = approved._sum.amount ?? new Prisma.Decimal(0);
+      return { allPaymentsVerified: !!terms && scheduled > 0 && pending === 0 && received.gte(terms.finalCost) };
+    }
     case "FINAL_DISCOM_APPROVED": {
       const d = await db.discomApplication.findUnique({ where: { projectId: project.id } });
       return { meterNumber: d?.meterNumber ?? undefined };

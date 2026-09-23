@@ -97,6 +97,8 @@ model Project {
   discom      DiscomApplication?
   plan        ProjectPlan?
   install     Installation?
+  schedule    PaymentScheduleItem[]
+  incentive   IncentiveResult?
 
   @@index([ownerId])
   @@index([partnerId])
@@ -320,4 +322,42 @@ model Installation {
   trainingAssigneeId  String?
   trainingCompletedAt DateTime?
   completedAt         DateTime?
+}
+
+enum Payer {
+  CUSTOMER
+  BANK
+}
+
+/// FR-007 / FR-036: agreed payment terms as dated milestones; basis for overdue receivables.
+model PaymentScheduleItem {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position  Int
+  label     String
+  payer     Payer
+  amount    Decimal  @db.Decimal(12, 2)
+  dueDate   DateTime
+
+  @@index([projectId])
+  @@index([dueDate])
+}
+
+/// FR-039 – FR-043: incentive and partner commission, computed at stage 23.
+model IncentiveResult {
+  projectId               String   @id
+  project                 Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  salesUserId             String
+  partnerId               String?
+  orderValue              Decimal  @db.Decimal(12, 2)
+  discountPct             Decimal  @db.Decimal(5, 2)
+  incentivePct            Decimal  @db.Decimal(7, 4)
+  incentiveAmount         Decimal  @db.Decimal(12, 2)
+  partnerCommissionPct    Decimal  @db.Decimal(7, 4)
+  partnerCommissionAmount Decimal  @db.Decimal(12, 2)
+  /// Rules used, so a later config change never silently rewrites history.
+  rules                   Json
+  provisional             Boolean  @default(true)
+  calculatedAt            DateTime @default(now())
 }

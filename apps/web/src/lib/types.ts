@@ -101,6 +101,15 @@ export interface ProjectDetail extends ProjectRow {
     receivedRemark: string | null;
   } | null;
   install: { startedAt: string | null; endedAt: string | null; trainingAssigneeId: string | null; trainingCompletedAt: string | null; completedAt: string | null } | null;
+  schedule: { id: string; position: number; label: string; payer: "CUSTOMER" | "BANK"; amount: string; dueDate: string }[];
+  incentive: {
+    incentivePct?: string;
+    incentiveAmount?: string;
+    partnerCommissionPct: string;
+    partnerCommissionAmount: string;
+    provisional: boolean;
+    calculatedAt: string;
+  } | null;
 }
 
 export const PAYMENT_KIND_LABEL: Record<Payment["kind"], string> = {

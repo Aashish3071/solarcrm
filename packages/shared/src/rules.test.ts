@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   expectedEndDate,
+  overdueAmount,
+  validateSchedule,
   validateDelayRemark,
   validateDiscount,
   validateInstallation,
@@ -81,5 +83,23 @@ describe("FR-031 installation", () => {
 describe("FR-026 expected end date", () => {
   it("adds configured days", () => {
     expect(expectedEndDate(new Date("2026-09-01T00:00:00Z"), 12).toISOString()).toBe("2026-09-13T00:00:00.000Z");
+  });
+});
+
+describe("FR-036 payment schedule", () => {
+  const items = [
+    { label: "Advance", payer: "CUSTOMER" as const, amount: 30000, dueDate: "2026-09-01" },
+    { label: "Final", payer: "CUSTOMER" as const, amount: 70000, dueDate: "2026-10-01" },
+  ];
+  it("must add up to the contract value", () => {
+    expect(validateSchedule(items, 100000)).toEqual([]);
+    expect(validateSchedule(items, 120000)).toHaveLength(1);
+    expect(validateSchedule([], 1)).toHaveLength(1);
+  });
+  it("computes overdue from due items minus verified receipts", () => {
+    const dated = items.map((i) => ({ amount: i.amount, dueDate: new Date(i.dueDate) }));
+    expect(overdueAmount(dated, 0, new Date("2026-09-15"))).toBe(30000);
+    expect(overdueAmount(dated, 30000, new Date("2026-09-15"))).toBe(0);
+    expect(overdueAmount(dated, 30000, new Date("2026-10-02"))).toBe(70000);
   });
 });
