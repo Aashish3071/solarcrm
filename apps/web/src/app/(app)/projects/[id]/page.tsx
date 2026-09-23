@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ROLE_LABELS, STAGES, STAGE_DEFS, type Role } from "@solarcrm/shared";
+import { Documents } from "@/components/Documents";
 import { StageActions } from "@/components/StageActions";
-import { dateTime, inr } from "@/lib/format";
+import { STATUS_LABELS } from "@solarcrm/shared";
+import { dateTime, day, inr } from "@/lib/format";
 import { api, type Me } from "@/lib/server-api";
 import { PAYMENT_KIND_LABEL, type ProjectDetail } from "@/lib/types";
 
@@ -57,15 +59,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
         <StageActions
-          projectId={p.id}
-          role={me.role as Role}
-          availableStages={p.availableStages}
-          supervisorAssignedAt={supervisorAssignedAt}
-          requiredKw={p.requiredKw}
-          packageName={p.packageName}
-          masters={masters}
-          people={people}
-          pendingAdvance={pendingAdvance && { amount: pendingAdvance.amount, mode: pendingAdvance.mode, utr: pendingAdvance.utr }}
+          p={p}
+          meId={me.id}
+          ctx={{
+            projectId: p.id,
+            role: me.role as Role,
+            availableStages: p.availableStages,
+            supervisorAssignedAt,
+            requiredKw: p.requiredKw,
+            packageName: p.packageName,
+            masters,
+            people,
+            pendingAdvance: pendingAdvance && { amount: pendingAdvance.amount, mode: pendingAdvance.mode, utr: pendingAdvance.utr },
+          }}
         />
       </section>
 
@@ -117,6 +123,42 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </section>
           )}
 
+          {(p.gov || p.loan || p.discom) && (
+            <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="ext">
+              <div className="card-head"><h2 className="label" id="ext">Registration · loan · DISCOM</h2></div>
+              <dl className="kv">
+                {p.gov && (<><dt>Government</dt><dd>{STATUS_LABELS[p.gov.status] ?? p.gov.status}{p.gov.registrationNo ? ` · ${p.gov.registrationNo}` : ""}{p.gov.registrationDate ? ` · ${day(p.gov.registrationDate)}` : ""}</dd></>)}
+                {p.loan && (
+                  <>
+                    <dt>Loan</dt>
+                    <dd>{p.loan.bank} · {STATUS_LABELS[p.loan.status] ?? p.loan.status} · requested {inr(p.loan.requestedAmount)}{p.loan.approvedAmount ? `, approved ${inr(p.loan.approvedAmount)}` : ""}</dd>
+                    {p.loan.split && (<><dt>Payment split</dt><dd>Customer {inr(p.loan.split.customer)} · Bank {inr(p.loan.split.bank)}</dd></>)}
+                  </>
+                )}
+                {p.discom && (<><dt>DISCOM</dt><dd>{p.discom.applicationNo} · {STATUS_LABELS[p.discom.status] ?? p.discom.status}{p.discom.meterNumber ? ` · meter ${p.discom.meterNumber}` : ""}</dd></>)}
+              </dl>
+            </section>
+          )}
+
+          {p.plan && (
+            <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="plan">
+              <div className="card-head"><h2 className="label" id="plan">Plan &amp; material</h2></div>
+              <dl className="kv">
+                {p.plan.revisitAt && (<><dt>Site revisit</dt><dd>{day(p.plan.revisitAt)}{p.plan.revisitNotes ? ` · ${p.plan.revisitNotes}` : ""}</dd></>)}
+                <dt>Planned start / end</dt><dd>{p.plan.plannedStart ? `${day(p.plan.plannedStart)} → ${day(p.plan.expectedEnd)}` : "Not planned"}{p.plan.rescheduleCount ? ` · rescheduled ${p.plan.rescheduleCount}×` : ""}</dd>
+                {p.plan.delayReason && (<><dt>Reschedule reason</dt><dd>{p.plan.delayReason}</dd></>)}
+                {p.plan.actualStart && (<><dt>Actual start / end</dt><dd>{day(p.plan.actualStart)} → {day(p.plan.actualEnd)}</dd></>)}
+                <dt>Material</dt>
+                <dd>
+                  {p.plan.receivedAt ? `Received ${dateTime(p.plan.receivedAt)}` : p.plan.dispatchedAt ? `Dispatched ${dateTime(p.plan.dispatchedAt)}` : p.plan.materialReadyAt ? `Ready ${dateTime(p.plan.materialReadyAt)}` : "Not ready"}
+                  {p.plan.readyRemark && <small style={{ display: "block", color: "var(--mute)" }}>Ready: {p.plan.readyRemark}</small>}
+                  {p.plan.receivedRemark && <small style={{ display: "block", color: "var(--mute)" }}>Receipt: {p.plan.receivedRemark}</small>}
+                </dd>
+                {p.install?.trainingCompletedAt && (<><dt>Client training</dt><dd>Completed {dateTime(p.install.trainingCompletedAt)}</dd></>)}
+              </dl>
+            </section>
+          )}
+
           {p.payments.length > 0 && (
             <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="pay">
               <div className="card-head"><h2 className="label" id="pay">Payments</h2></div>
@@ -144,6 +186,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div>
+          <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="docs">
+            <div className="card-head"><h2 className="label" id="docs">Documents</h2></div>
+            <Documents p={p} role={me.role as Role} />
+          </section>
           <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="team">
             <div className="card-head"><h2 className="label" id="team">Team</h2></div>
             <ul className="rows">

@@ -141,7 +141,11 @@ export const STAGE_DEFS: Record<Stage, StageDef> = {
   },
   DESIGN_UPLOADED: {
     number: 14, label: "Site Revisit & Design", actors: ["SITE_SUPERVISOR"], requires: ["PROJECT_INITIATED"], frd: "FR-023, FR-024",
-    guard: (i) => required(i, { designDocId: "Upload the final site design.", installationPlanDocId: "Upload the installation plan." }),
+    guard: (i) => required(i, {
+      revisitAt: "Record the site revisit date.",
+      designDocId: "Upload the final site design.",
+      installationPlanDocId: "Upload the installation plan.",
+    }),
   },
   PROJECT_PLANNED: {
     number: 15, label: "Project Planning", actors: ["PROJECT_ENGINEER"], requires: ["DESIGN_UPLOADED"], frd: "FR-015, FR-025, FR-026",

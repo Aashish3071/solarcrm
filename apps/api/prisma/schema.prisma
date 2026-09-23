@@ -91,6 +91,12 @@ model Project {
   siteVisit   SiteVisit?
   terms       SalesTerms?
   payments    Payment[]
+  documents   Document[]
+  gov         GovRegistration?
+  loan        LoanApplication?
+  discom      DiscomApplication?
+  plan        ProjectPlan?
+  install     Installation?
 
   @@index([ownerId])
   @@index([partnerId])
@@ -213,4 +219,105 @@ model Payment {
   @@index([status, loggedAt])
   @@index([projectId])
   @@index([utr])
+}
+
+enum DocumentType {
+  SITE_PHOTO
+  DESIGN
+  INSTALLATION_PLAN
+  INSTALLATION_PHOTO
+  COMPLETION_CERTIFICATE
+  TRAINING_CERTIFICATE
+  GOV_DOCUMENT
+  LOAN_DOCUMENT
+  DISCOM_DOCUMENT
+  OTHER
+}
+
+/// FRD §7 documents. Binary lives in object storage keyed by project and stage (Booklet §6.6).
+model Document {
+  id           String       @id @default(cuid())
+  projectId    String
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type         DocumentType
+  stage        String
+  fileName     String
+  mimeType     String
+  size         Int
+  storageKey   String       @unique
+  uploadedById String
+  uploadedAt   DateTime     @default(now())
+
+  @@index([projectId, type])
+}
+
+/// FR-012: government portal registration (manual status until an API exists).
+model GovRegistration {
+  projectId        String    @id
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status           String
+  registrationNo   String?
+  registrationDate DateTime?
+  notes            String?
+  updatedAt        DateTime  @updatedAt
+  updatedById      String
+}
+
+/// FR-013, FR-016 – FR-019: loan application and customer/bank split.
+model LoanApplication {
+  projectId           String    @id
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  bank                String
+  status              String
+  requestedAmount     Decimal   @db.Decimal(12, 2)
+  approvedAmount      Decimal?  @db.Decimal(12, 2)
+  clientReconfirmedAt DateTime?
+  reconfirmedById     String?
+  notes               String?
+  updatedAt           DateTime  @updatedAt
+  updatedById         String
+}
+
+/// FR-021, FR-022, FR-034: DISCOM application, meter and final approval.
+model DiscomApplication {
+  projectId         String    @id
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  applicationNo     String
+  status            String
+  meterNumber       String?
+  meterInstalledAt  DateTime?
+  finalApprovalDate DateTime?
+  notes             String?
+  updatedAt         DateTime  @updatedAt
+  updatedById       String
+}
+
+/// FR-014 site revisit, FR-015/025/026 schedule, FR-027–030 material and delay tracking.
+model ProjectPlan {
+  projectId        String    @id
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  revisitAt        DateTime?
+  revisitNotes     String?
+  plannedStart     DateTime?
+  expectedEnd      DateTime?
+  actualStart      DateTime?
+  actualEnd        DateTime?
+  rescheduleCount  Int       @default(0)
+  delayReason      String?
+  materialReadyAt  DateTime?
+  readyRemark      String?
+  dispatchedAt     DateTime?
+  receivedAt       DateTime?
+  receivedRemark   String?
+}
+
+/// FR-031 – FR-033, FR-035: execution, training and completion.
+model Installation {
+  projectId           String    @id
+  project             Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  startedAt           DateTime?
+  endedAt             DateTime?
+  trainingAssigneeId  String?
+  trainingCompletedAt DateTime?
+  completedAt         DateTime?
 }

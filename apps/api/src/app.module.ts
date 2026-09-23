@@ -13,6 +13,9 @@ import { PrismaService } from "./prisma.service";
 import { ProjectsController } from "./projects/projects.controller";
 import { ProjectsService } from "./projects/projects.service";
 import { UsersController } from "./users/users.controller";
+import { TracksController } from "./projects/tracks.controller";
+import { DocumentsController } from "./storage/documents.controller";
+import { LocalDiskStorage, StorageService } from "./storage/storage.service";
 
 @Module({
   imports: [
@@ -26,7 +29,7 @@ import { UsersController } from "./users/users.controller";
       },
     }),
   ],
-  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController],
-  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, { provide: APP_GUARD, useClass: AuthGuard }],
+  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController, TracksController, DocumentsController],
+  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, { provide: StorageService, useClass: LocalDiskStorage }, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

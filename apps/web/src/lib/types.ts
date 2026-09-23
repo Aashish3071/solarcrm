@@ -27,6 +27,14 @@ export interface ProjectListRow extends ProjectRow {
   team: Partial<Record<Role, string>>;
   visit: { scheduledAt: string | null; completedAt: string | null; feasible: boolean | null } | null;
   terms: { finalCost: string; discountPct: string; confirmedAt: string | null } | null;
+  gov: { status: string; registrationNo: string | null } | null;
+  loan: { status: string; bank: string; approvedAmount: string | null; requestedAmount: string; clientReconfirmedAt: string | null } | null;
+  discom: { status: string; applicationNo: string; meterNumber: string | null } | null;
+  plan: {
+    plannedStart: string | null; expectedEnd: string | null; actualStart: string | null; actualEnd: string | null;
+    materialReadyAt: string | null; dispatchedAt: string | null; receivedAt: string | null;
+  } | null;
+  install: { trainingAssigneeId: string | null; trainingCompletedAt: string | null; completedAt: string | null } | null;
 }
 
 export interface Payment {
@@ -65,6 +73,34 @@ export interface ProjectDetail extends ProjectRow {
     confirmationNote: string | null;
   } | null;
   payments: Payment[];
+  documents: { id: string; type: string; stage: string; fileName: string; mimeType: string; size: number; uploadedAt: string }[];
+  gov: { status: string; registrationNo: string | null; registrationDate: string | null; notes: string | null } | null;
+  loan: {
+    bank: string;
+    status: string;
+    requestedAmount: string;
+    approvedAmount: string | null;
+    clientReconfirmedAt: string | null;
+    notes: string | null;
+    split: { bank: string; customer: string } | null;
+  } | null;
+  discom: { applicationNo: string; status: string; meterNumber: string | null; finalApprovalDate: string | null; notes: string | null } | null;
+  plan: {
+    revisitAt: string | null;
+    revisitNotes: string | null;
+    plannedStart: string | null;
+    expectedEnd: string | null;
+    actualStart: string | null;
+    actualEnd: string | null;
+    rescheduleCount: number;
+    delayReason: string | null;
+    materialReadyAt: string | null;
+    readyRemark: string | null;
+    dispatchedAt: string | null;
+    receivedAt: string | null;
+    receivedRemark: string | null;
+  } | null;
+  install: { startedAt: string | null; endedAt: string | null; trainingAssigneeId: string | null; trainingCompletedAt: string | null; completedAt: string | null } | null;
 }
 
 export const PAYMENT_KIND_LABEL: Record<Payment["kind"], string> = {

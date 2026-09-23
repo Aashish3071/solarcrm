@@ -17,7 +17,7 @@ import { AuditService } from "../common/audit.service";
 import type { AuthUser } from "../common/auth-context";
 import { ConfigParamsService } from "../common/config-params.service";
 import { RuleViolation } from "../common/validation";
-import { applyEffects, preCheck } from "./stage-effects";
+import { applyEffects, preCheck, serverFacts } from "./stage-effects";
 import { PrismaService } from "../prisma.service";
 
 export interface CreateLeadInput {
@@ -61,6 +61,8 @@ export class ProjectsService {
   scope(user: AuthUser): Prisma.ProjectWhereInput {
     if (SEES_ALL.includes(user.role)) return {};
     if (user.role === "SALES_PARTNER") return { partnerId: user.partnerId ?? "__none__" };
+    // Store works across projects (Booklet §3 "Inventory/dispatch module"): every planned project.
+    if (user.role === "STORE_MANAGER") return { completedStages: { has: "PROJECT_PLANNED" } };
     return { assignments: { some: { userId: user.id } } };
   }
 
@@ -75,6 +77,11 @@ export class ProjectsService {
         assignments: { select: { role: true, user: { select: { name: true } } } },
         siteVisit: { select: { scheduledAt: true, completedAt: true, feasible: true } },
         terms: { select: { finalCost: true, discountPct: true, confirmedAt: true } },
+        gov: { select: { status: true, registrationNo: true } },
+        loan: { select: { status: true, bank: true, approvedAmount: true, requestedAmount: true, clientReconfirmedAt: true } },
+        discom: { select: { status: true, applicationNo: true, meterNumber: true } },
+        plan: { select: { plannedStart: true, expectedEnd: true, actualStart: true, actualEnd: true, materialReadyAt: true, dispatchedAt: true, receivedAt: true } },
+        install: { select: { trainingAssigneeId: true, trainingCompletedAt: true, completedAt: true } },
       },
     });
     return rows.map((p) => ({
@@ -82,6 +89,11 @@ export class ProjectsService {
       team: Object.fromEntries(p.assignments.map((a) => [a.role, a.user.name])),
       visit: p.siteVisit,
       terms: p.terms && { finalCost: p.terms.finalCost.toString(), discountPct: p.terms.discountPct.toString(), confirmedAt: p.terms.confirmedAt },
+      gov: p.gov,
+      loan: p.loan && { ...p.loan, approvedAmount: p.loan.approvedAmount?.toString() ?? null, requestedAmount: p.loan.requestedAmount.toString() },
+      discom: p.discom,
+      plan: p.plan,
+      install: p.install,
     }));
   }
 
@@ -96,6 +108,12 @@ export class ProjectsService {
         siteVisit: true,
         terms: true,
         payments: { orderBy: { loggedAt: "desc" } },
+        documents: { orderBy: { uploadedAt: "desc" } },
+        gov: true,
+        loan: true,
+        discom: true,
+        plan: true,
+        install: true,
       },
     });
     if (!p) throw new NotFoundException("Project not found.");
@@ -106,6 +124,21 @@ export class ProjectsService {
       siteVisit: p.siteVisit && { ...p.siteVisit, actualKw: p.siteVisit.actualKw?.toString() ?? null },
       terms: p.terms && { ...p.terms, finalCost: p.terms.finalCost.toString(), discountPct: p.terms.discountPct.toString() },
       payments: p.payments.map((x) => ({ ...x, amount: x.amount.toString() })),
+      documents: p.documents.map(({ storageKey, ...d }) => d),
+      gov: p.gov,
+      loan: p.loan && {
+        ...p.loan,
+        requestedAmount: p.loan.requestedAmount.toString(),
+        approvedAmount: p.loan.approvedAmount?.toString() ?? null,
+        // FR-019: split recalculated from the approved loan once terms are confirmed.
+        split:
+          p.terms && p.loan.approvedAmount && (p.loan.clientReconfirmedAt || p.loan.approvedAmount.equals(p.loan.requestedAmount))
+            ? { bank: p.loan.approvedAmount.toString(), customer: p.terms.finalCost.minus(p.loan.approvedAmount).toString() }
+            : null,
+      },
+      discom: p.discom,
+      plan: p.plan,
+      install: p.install,
     };
   }
 
@@ -142,6 +175,8 @@ export class ProjectsService {
     if (!p) throw new NotFoundException("Project not found.");
 
     const state = await this.state(p);
+    const durationDays = await this.config.number("planning.defaultDurationDays", 12);
+    input = { ...input, ...(await serverFacts(this.prisma, p, stage, durationDays)) };
     const check = checkCompletion(stage, user.role, state, input);
     if (!check.ok) throw new RuleViolation(check.errors);
 

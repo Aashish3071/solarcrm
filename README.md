@@ -5,25 +5,24 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** 1 in progress. Part A (stages 1–10) is done.
+- **Phase:** Phase 1 (A and B) is complete. Every stage from 1 to 21 now has a working screen.
 - **Progress:**
-  - Phase 0: foundations (auth, roles, audit, 23-stage workflow engine, app shell).
-  - Phase 1A:
-    - Leads: kanban and list views, a New Lead form, and requirement capture.
-    - Site Visits: supervisor assignment, visit scheduling with the 24-hour reason, and the site assessment.
-    - Finalize & Advance: final terms with the 4% discount limit, customer confirmation, and the advance with its UTR.
-    - Payments: an Accounts verification queue with approve and reject, receipt history, and outstanding and collection KPIs.
-    - Project detail: a "Your next steps" panel for each role, and initiation (stage 10).
-  - Tests: 33 unit and 4 end-to-end.
-- **Next step:** Phase 1B covers stages 10–20:
-  - Project Initiation screen and team assignment
-  - Government Registration
-  - Loan Processing
-  - DISCOM
-  - Site Revisit & Design
-  - Planning & Material
-  - Installation & Completion
-  - document and photo uploads, which need an object-storage choice (open point 14)
+  - Phase 0: foundations.
+  - Phase 1A: lead to verified advance (stages 1–10).
+  - Phase 1B: stages 10–21:
+    - Initiation and team assignment
+    - Government registration, in manual mode
+    - Loan: application, approval, client re-confirmation and the customer/bank split
+    - DISCOM application through to final approval
+    - Site revisit and design uploads
+    - Planning with the auto end date and rescheduling
+    - Material ready, dispatched and received, with delay remarks
+    - Installation with mandatory photos
+    - Completion certificate, and client training with its certificate
+    - Loan instalments and collections, logged by Sales and verified by Accounts
+    - Document storage: local disk behind a storage interface
+  - Tests: 33 unit and 5 end-to-end.
+- **Next step:** Phase 2 adds payment schedules with overdue tracking, stage 22 (payment collection), the incentive and commission engine for stage 23, and the admin configuration UI.
 
 ## Layout
 
@@ -33,6 +32,7 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 | `apps/api` | NestJS + Prisma (PostgreSQL). Cookie JWT auth, role/module guard, row-level project scoping, audit log, stage-completion endpoints. |
 | `apps/web` | Next.js app (dashboard, leads, site visits, finalize & advance, payments, projects). Proxies `/api/*` to the API. |
 | `docker-compose.yml` | Local Postgres and Redis. |
+| `apps/api/storage/` | Uploaded documents in development (git-ignored). Set `STORAGE_DIR` to move it. |
 
 ## Run locally
 

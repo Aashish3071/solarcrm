@@ -31,6 +31,7 @@ after(async () => {
     const prisma = new PrismaClient();
     await prisma.auditLog.deleteMany({ where: { entityId: { in: created } } });
     await prisma.project.deleteMany({ where: { id: { in: created } } });
+    for (const pid of created) require("node:fs").rmSync(path.join(process.cwd(), "storage", pid), { recursive: true, force: true });
     await prisma.$disconnect();
   }
   await app?.close();
@@ -44,7 +45,7 @@ async function login(email) {
   });
   assert.equal(res.status, 200, `login ${email}`);
   const cookie = res.headers.get("set-cookie").split(";")[0];
-  return async (method, url, body) => {
+  const call = async (method, url, body) => {
     const r = await fetch(base + url, {
       method,
       headers: { cookie, "content-type": "application/json" },
@@ -52,6 +53,14 @@ async function login(email) {
     });
     return { status: r.status, body: await r.json().catch(() => null) };
   };
+  call.upload = async (url, type, bytes, name = "file.png") => {
+    const fd = new FormData();
+    fd.append("type", type);
+    fd.append("file", new Blob([bytes]), name);
+    const r = await fetch(base + url, { method: "POST", headers: { cookie }, body: fd });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  return call;
 }
 
 test("rejects unauthenticated requests", async () => {
@@ -172,4 +181,129 @@ test("lead to initiation with gates enforced", async () => {
   r = await done(sales, "PROJECT_INITIATED", { officeExecutiveId: idOf("OFFICE_EXECUTIVE") });
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.availableStages, ["GOV_REGISTERED", "DISCOM_APPLIED", "DESIGN_UPLOADED"]);
+
+  // ---- Phase 1B: stages 11–21 ----
+  const office = await login("office@solarcrm.local");
+  const discom = await login("discom@solarcrm.local");
+  const engineer = await login("engineer@solarcrm.local");
+  const store = await login("store@solarcrm.local");
+  const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da6360000002000154a24f5d0000000049454e44ae426082", "hex");
+
+  // FR-014: Office Executive assigns DISCOM Officer and Project Engineer
+  assert.equal((await office("POST", `/projects/${id}/assignments`, { role: "DISCOM_OFFICER", userId: idOf("DISCOM_OFFICER") })).status, 200);
+  assert.equal((await office("POST", `/projects/${id}/assignments`, { role: "PROJECT_ENGINEER", userId: idOf("PROJECT_ENGINEER") })).status, 200);
+  // Store Manager only sees projects once they are planned
+  assert.equal((await store("GET", `/projects/${id}`)).status, 404);
+
+  // FR-012: submitted then registered
+  assert.equal((await office("PUT", `/projects/${id}/gov`, { status: "SUBMITTED" })).status, 200);
+  assert.equal((await office("PUT", `/projects/${id}/gov`, { status: "REGISTERED" })).status, 422);
+  r = await office("PUT", `/projects/${id}/gov`, { status: "REGISTERED", registrationNo: "GR-1", registrationDate: "2026-09-20" });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.completedStages.includes("GOV_REGISTERED"));
+
+  // FR-021: DISCOM application
+  r = await discom("PUT", `/projects/${id}/discom`, { applicationNo: "DC-1", status: "SUBMITTED" });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.completedStages.includes("DISCOM_APPLIED"));
+
+  // FR-023/024: design needs both documents; file type is checked by content
+  assert.equal((await done(supervisor, "DESIGN_UPLOADED", { revisitAt: "2026-09-21T10:00:00Z", designDocId: "forged" })).status, 422);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "DESIGN", Buffer.from("not really a png"))).status, 422);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "COMPLETION_CERTIFICATE", PNG)).status, 403);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "DESIGN", PNG)).status, 201);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "INSTALLATION_PLAN", PNG)).status, 201);
+  assert.equal((await done(supervisor, "DESIGN_UPLOADED", { revisitAt: "2026-09-21T10:00:00Z" })).status, 200);
+
+  // FR-015/026: start date → expected end auto-calculated
+  const start = new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10);
+  r = await done(engineer, "PROJECT_PLANNED", { startDate: start });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.plan.expectedEnd > r.body.plan.plannedStart);
+  // FR-025: reschedule recalculates
+  r = await engineer("PUT", `/projects/${id}/plan/reschedule`, { startDate: new Date(Date.now() - 86400_000).toISOString().slice(0, 10), reason: "Customer request" });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.plan.rescheduleCount, 1);
+
+  // FR-027/029: start date is now in the past, so material is late → remark required
+  assert.equal((await store("GET", `/projects/${id}`)).status, 200);
+  assert.equal((await done(store, "MATERIAL_READY", {})).status, 422);
+  assert.equal((await done(store, "MATERIAL_READY", { remark: "Inverter arrived late" })).status, 200);
+  assert.equal((await done(store, "DISPATCHED", {})).status, 200);
+  assert.equal((await done(supervisor, "RECEIVED_AT_SITE", {})).status, 422);
+  assert.equal((await done(supervisor, "RECEIVED_AT_SITE", { remark: "Late dispatch" })).status, 200);
+
+  // FR-031: photo mandatory; a client-claimed photoCount is ignored
+  const exec = { startedAt: "2026-09-22", endedAt: "2026-09-23" };
+  assert.equal((await done(supervisor, "INSTALLATION_DONE", { ...exec, photoCount: 5 })).status, 422);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "INSTALLATION_PHOTO", PNG)).status, 201);
+  assert.equal((await done(supervisor, "INSTALLATION_DONE", exec)).status, 200);
+
+  // FR-033: completion needs the signed certificate
+  assert.equal((await done(engineer, "COMPLETED", {})).status, 422);
+  assert.equal((await engineer.upload(`/projects/${id}/documents`, "COMPLETION_CERTIFICATE", PNG, "cert.png")).status, 201);
+  assert.equal((await done(engineer, "COMPLETED", {})).status, 200);
+
+  // FR-032/035: training assigned, then completed with certificate
+  assert.equal((await engineer("PUT", `/projects/${id}/training`, { assigneeId: idOf("SITE_SUPERVISOR") })).status, 200);
+  assert.equal((await supervisor("POST", `/projects/${id}/training/complete`)).status, 422);
+  assert.equal((await supervisor.upload(`/projects/${id}/documents`, "TRAINING_CERTIFICATE", PNG)).status, 201);
+  assert.equal((await supervisor("POST", `/projects/${id}/training/complete`)).status, 200);
+
+  // FR-034: final DISCOM approval needs a meter number
+  assert.equal((await discom("PUT", `/projects/${id}/discom`, { applicationNo: "DC-1", status: "FINAL_APPROVED" })).status, 422);
+  r = await discom("PUT", `/projects/${id}/discom`, { applicationNo: "DC-1", status: "FINAL_APPROVED", meterNumber: "MTR-1" });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.completedStages.includes("FINAL_DISCOM_APPROVED"));
+
+  // Documents are downloadable only within scope
+  const docId = r.body.documents[0].id;
+  const dl = await fetch(`${base}/documents/${docId}/file`, { headers: { cookie: "" } });
+  assert.equal(dl.status, 401);
+});
+
+test("loan re-confirmation and instalments", async () => {
+  const sales = await login("sales@solarcrm.local");
+  const admin = await login("admin@solarcrm.local");
+  const loanOfficer = await login("loan@solarcrm.local");
+  const accounts = await login("accounts@solarcrm.local");
+  const users = (await sales("GET", "/users")).body;
+  const idOf = (role) => users.find((u) => u.role === role).id;
+  let r = await sales("POST", "/projects", { customerName: "E2E Loan", phone: "9800000003", address: "Y", leadSource: "DIRECT" });
+  const id = r.body.id;
+  created.push(id);
+  const adm = (stage, input) => admin("POST", `/projects/${id}/stages/${stage}/complete`, { input });
+  await adm("REQUIREMENT_CAPTURED", { requiredKw: 5, loanRequired: true, loanAmount: 200000, projectType: "Residential", packageName: "Standard" });
+  await adm("SUPERVISOR_ASSIGNED", { supervisorId: idOf("SITE_SUPERVISOR") });
+  await adm("VISIT_SCHEDULED", { scheduledAt: new Date(Date.now() + 3600_000).toISOString() });
+  await adm("VISIT_COMPLETED", { feasible: true, actualKw: 5 });
+  await adm("SALES_FINALIZED", { finalCost: 300000, discountPct: 1, paymentTerms: "Advance / Bank / Final" });
+  await adm("CUSTOMER_CONFIRMED", {});
+  await adm("ADVANCE_LOGGED", { amount: 30000, mode: "UPI", utr: `LA${Date.now()}` });
+  await adm("PAYMENT_VERIFIED", { decision: "APPROVED" });
+  await adm("PROJECT_INITIATED", { officeExecutiveId: idOf("OFFICE_EXECUTIVE") });
+  const office = await login("office@solarcrm.local");
+  assert.equal((await office("POST", `/projects/${id}/assignments`, { role: "LOAN_OFFICER", userId: idOf("LOAN_OFFICER") })).status, 200);
+
+  // FR-017: approved amount differs → cannot complete until Sales re-confirms (FR-018)
+  r = await loanOfficer("PUT", `/projects/${id}/loan`, { bank: "Bank A", status: "APPROVED", requestedAmount: 200000, approvedAmount: 180000 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.loan.split, null);
+  const complete = () => loanOfficer("POST", `/projects/${id}/stages/LOAN_PROCESSED/complete`, { input: { approvedAmount: 200000 } });
+  assert.equal((await complete()).status, 422);
+  r = await sales("POST", `/projects/${id}/loan/reconfirm`);
+  assert.equal(r.status, 200);
+  // FR-019: split recalculated from the approved amount
+  assert.deepEqual(r.body.loan.split, { bank: "180000", customer: "120000" });
+  assert.equal((await complete()).status, 200);
+
+  // FR-020/038: instalment 2 waits for verified instalment 1
+  const pay = (kind, utr) => sales("POST", `/projects/${id}/payments`, { kind, amount: 90000, mode: "NEFT", utr });
+  assert.equal((await pay("LOAN_INSTALMENT_2", `I2${Date.now()}`)).status, 422);
+  r = await pay("LOAN_INSTALMENT_1", `I1${Date.now()}`);
+  assert.equal(r.status, 201);
+  const inst1 = r.body.payments.find((x) => x.kind === "LOAN_INSTALMENT_1");
+  assert.equal((await sales("POST", `/projects/${id}/payments/${inst1.id}/verify`, { decision: "APPROVED" })).status, 403);
+  assert.equal((await accounts("POST", `/projects/${id}/payments/${inst1.id}/verify`, { decision: "APPROVED" })).status, 200);
+  assert.equal((await pay("LOAN_INSTALMENT_2", `I2${Date.now()}`)).status, 201);
 });

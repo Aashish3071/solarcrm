@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { VerifyPayment } from "@/components/LaterForms";
 import { VerifyForm } from "@/components/StageActions";
 import { ago, dateTime, inr } from "@/lib/format";
 import { api, type Me } from "@/lib/server-api";
@@ -108,6 +109,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                       <td style={{ minWidth: 220 }}>
                         {canVerify && q.kind === "ADVANCE" ? (
                           <VerifyForm ctx={{ projectId: q.projectId, pendingAdvance: null }} compact />
+                        ) : canVerify ? (
+                          <VerifyPayment projectId={q.projectId} paymentId={q.id} />
                         ) : (
                           <span className="tag amber">Awaiting Accounts</span>
                         )}

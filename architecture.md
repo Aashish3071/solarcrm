@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 1A complete (stages 1–10). **Next:** Phase 1B covers stages 10–20, with documents and photos.
+**Current phase:** Phase 1 complete (stages 1–21). **Next:** Phase 2 adds payment schedules, stage 22 collection, the stage 23 incentive engine, and the admin config UI.
 
 ## System overview
 
@@ -13,6 +13,9 @@ NestJS API (:4000, modular monolith)
    ├─ Projects: lead creation, stage completion, payment rejection, assignments
    │    └─ stage-effects.ts: per-stage DB checks + writes (site visit, terms, payments)
    ├─ Payments: Accounts queue, receipt history, outstanding/collections summary
+   ├─ Tracks: manual external steps (gov, loan, DISCOM), reschedule, training, instalments
+   ├─ Documents: upload (role + type + content-sniffed MIME + 10 MB), scoped download
+   │    └─ StorageService → LocalDiskStorage (swap for S3/GCS/Azure, open point 14)
    ├─ Dashboard: role-scoped counts and "waiting on you"
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
@@ -56,13 +59,20 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `SiteVisit` | 1A | Schedule, late reason, assessment (FR-005, FR-006) |
 | `SalesTerms` | 1A | Package, cost, discount, terms, confirmation (FR-007, FR-008, FR-039) |
 | `Payment` | 1A | Advance / instalments / collections with LOGGED → APPROVED/REJECTED (FR-009, FR-010, FR-036–038) |
+| `Document` | 1B | FRD §7 files keyed by project + stage; binary in storage |
+| `GovRegistration` | 1B | Portal status, registration no. and date (FR-012) |
+| `LoanApplication` | 1B | Bank, status, requested/approved, client re-confirmation (FR-016–019) |
+| `DiscomApplication` | 1B | Application, status, meter, final approval (FR-021, 022, 034) |
+| `ProjectPlan` | 1B | Revisit, planned/actual dates, reschedules, material timestamps and remarks (FR-023–030) |
+| `Installation` | 1B | Execution dates, training assignee and completion (FR-031–035) |
 
 ### How a stage is completed
 
 1. `checkCompletion` (shared): prerequisites, role, FRD rule.
-2. `preCheck` (API): rules that need the database, such as no duplicate live UTR, a logged advance existing before verification, and terms existing before confirmation.
-3. One transaction: an atomic stage push, assignment upsert, `applyEffects` (writes the business record), and a `StageEvent`.
-4. An `AuditLog` entry.
+2. `serverFacts` (API): facts the server derives, such as documents present, photo count, loan amounts and planned date, replace anything the client sent.
+3. `preCheck` (API): rules that need the database, such as no duplicate live UTR, a logged advance existing before verification, and terms existing before confirmation.
+4. One transaction: an atomic stage push, assignment upsert, `applyEffects` (writes the business record), and a `StageEvent`.
+5. An `AuditLog` entry.
 
 ## Progress by phase
 
@@ -70,8 +80,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 |---|---|---|
 | 0 | Monorepo, infra, auth/RBAC, audit, workflow engine, app shell | **Done** |
 | 1A | Leads, site visits, finalize & advance, payment verification (stages 1–10) | **Done** |
-| 1B | Initiation team, Gov, Loan, DISCOM, design, planning, material, installation, documents (stages 10–20) | Next |
-| 2 | Payment split, collections, incentive engine, admin config UI | Planned |
+| 1B | Initiation team, Gov, Loan, DISCOM, design, planning, material, installation, documents (stages 10–21) | **Done** |
+| 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | Next |
 | 2b | Automation: routing, follow-ups, assignment, SLAs | Planned |
 | 3 | Notifications, bank-statement reconciliation | Planned |
 | 3b | AI Advisor | Planned |
@@ -82,9 +92,12 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 
 - The FR-005 24-hour rule is measured from supervisor assignment to the scheduled visit time (to confirm).
 - ADMIN can complete any stage (to revisit with the permission matrix).
-- Object storage is not provisioned yet: MinIO stopped publishing images, and the provider is open point 14.
+- Object storage uses local disk (`LocalDiskStorage`) behind `StorageService` until a cloud provider is chosen (open point 14). File type is checked from the file content, not the name.
 - Prisma is pinned to 6.x; 7.x is a major upgrade to plan separately.
 - FR-003 indicative pricing is not shown yet: it needs the pricing formula and rate masters (open point 3).
 - Project types and packages are placeholder masters in `ConfigParam` (open point 2).
 - The same UTR cannot be logged twice unless the earlier entry was rejected. This supports FR-010 but is our own control, not an FRD rule.
 - "Overdue receivables" needs payment schedules with due dates, which come in Phase 2.
+- Material delay (FR-027/029) is measured against the planned project start date, because the FRD does not define a separate dispatch due date.
+- The Store Manager sees every planned project (inventory works across projects); other field roles see only projects they are assigned to.
+- Final DISCOM approval (21) needs Completion (20) and a meter number.

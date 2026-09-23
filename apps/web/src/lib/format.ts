@@ -8,3 +8,6 @@ export const ago = (iso: string | Date) => {
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600_000);
   return h < 1 ? "under 1h" : h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 };
+
+export const day = (iso: string | Date | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";

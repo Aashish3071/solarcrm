@@ -3,7 +3,12 @@
 import { PAYMENT_MODES, STAGE_DEFS, type Role, type Stage } from "@solarcrm/shared";
 import { useState } from "react";
 import { completeStage, useAction } from "@/lib/client-api";
+import type { ProjectDetail } from "@/lib/types";
 import { Errors, Field, num, val } from "./FormBits";
+import {
+  AssignForm, DiscomForm, GovForm, LoanForm, LoanReconfirm, LogPaymentForm, RescheduleForm,
+  SimpleStageForm, TrainingForm, VerifyPayment, dateOnly, today,
+} from "./LaterForms";
 
 export interface ActionContext {
   projectId: string;
@@ -17,8 +22,8 @@ export interface ActionContext {
   pendingAdvance: { amount: string; mode: string; utr: string } | null;
 }
 
-/** Forms for the stages Phase 1 builds (1–10). Each maps to its FRD requirement. */
-const BUILT: Stage[] = [
+/** Stages 2–10 use the forms below; 11–21 use LaterForms. */
+const EARLY: Stage[] = [
   "REQUIREMENT_CAPTURED",
   "SUPERVISOR_ASSIGNED",
   "VISIT_SCHEDULED",
@@ -30,23 +35,126 @@ const BUILT: Stage[] = [
   "PROJECT_INITIATED",
 ];
 
-export function StageActions(ctx: ActionContext) {
-  const mine = ctx.availableStages.filter((s) => ctx.role === "ADMIN" || STAGE_DEFS[s].actors.includes(ctx.role));
-  if (mine.length === 0) {
-    return <p className="empty">Nothing here is waiting on your role.</p>;
-  }
+function Block({ id, title, source, children }: { id: string; title: string; source?: string; children: React.ReactNode }) {
   return (
-    <div className="actions">
-      {mine.map((s) => (
-        <section key={s} className="action" aria-labelledby={`act-${s}`}>
-          <h3 id={`act-${s}`}>
-            {STAGE_DEFS[s].number}. {STAGE_DEFS[s].label} <small>{STAGE_DEFS[s].frd}</small>
-          </h3>
-          {BUILT.includes(s) ? <StageForm stage={s} ctx={ctx} /> : <p className="hint">This step's screen is built in the next part of Phase 1.</p>}
-        </section>
-      ))}
-    </div>
+    <section className="action" aria-labelledby={`act-${id}`}>
+      <h3 id={`act-${id}`}>{title} {source && <small>{source}</small>}</h3>
+      {children}
+    </section>
   );
+}
+
+/**
+ * Everything the signed-in role can do on this project right now: stage
+ * completions it owns plus the non-stage actions (assignments, reschedule,
+ * training, re-confirmation, further payments). The server re-checks all of it.
+ */
+export function StageActions({ p, ctx, meId }: { p: ProjectDetail; ctx: ActionContext; meId: string }) {
+  const role = ctx.role;
+  const admin = role === "ADMIN";
+  const is = (...r: Role[]) => admin || r.includes(role);
+  const mine = ctx.availableStages.filter((s) => admin || STAGE_DEFS[s].actors.includes(role));
+  const blocks: React.ReactNode[] = [];
+  const title = (s: Stage) => `${STAGE_DEFS[s].number}. ${STAGE_DEFS[s].label}`;
+
+  for (const s of mine) {
+    const src = STAGE_DEFS[s].frd;
+    if (EARLY.includes(s)) {
+      blocks.push(<Block key={s} id={s} title={title(s)} source={src}><StageForm stage={s} ctx={ctx} /></Block>);
+      continue;
+    }
+    let body: React.ReactNode;
+    switch (s) {
+      case "GOV_REGISTERED": body = <GovForm p={p} />; break;
+      case "LOAN_PROCESSED": body = <LoanForm p={p} />; break;
+      case "DISCOM_APPLIED":
+      case "FINAL_DISCOM_APPROVED": body = <DiscomForm p={p} />; break;
+      case "DESIGN_UPLOADED":
+        body = <SimpleStageForm p={p} stage={s} label="Complete site revisit & design"
+          note={<p className="hint">Upload the final site design and the installation plan under Documents first (FR-024).</p>}
+          fields={[{ name: "revisitAt", label: "Site revisit date", type: "date", required: true, max: today() }, { name: "revisitNotes", label: "Revisit notes" }]} />;
+        break;
+      case "PROJECT_PLANNED":
+        body = <SimpleStageForm p={p} stage={s} label="Save plan"
+          note={<p className="hint">The expected end date is calculated automatically from the start date (FR-026).</p>}
+          fields={[{ name: "startDate", label: "Project start date", type: "date", required: true }]} />;
+        break;
+      case "MATERIAL_READY":
+      case "RECEIVED_AT_SITE": {
+        const late = p.plan?.plannedStart && new Date() > new Date(p.plan.plannedStart);
+        body = <SimpleStageForm p={p} stage={s} label={s === "MATERIAL_READY" ? "Mark ready to dispatch" : "Confirm received at site"}
+          note={late ? <p className="notice">This is after the planned start date ({dateOnly(p.plan!.plannedStart)}), so a delay remark is required.</p> : null}
+          fields={[{ name: "remark", label: late ? "Delay remark" : "Remark (optional)", required: !!late }]} />;
+        break;
+      }
+      case "DISPATCHED":
+        body = <SimpleStageForm p={p} stage={s} label="Mark dispatched" />;
+        break;
+      case "INSTALLATION_DONE": {
+        const photos = p.documents.filter((d) => d.type === "INSTALLATION_PHOTO").length;
+        body = <SimpleStageForm p={p} stage={s} label="Record execution"
+          note={<p className={photos ? "hint" : "notice"}>{photos ? `${photos} installation photo(s) uploaded.` : "Upload at least one installation photo under Documents first (FR-031)."}</p>}
+          fields={[{ name: "startedAt", label: "Execution start date", type: "date", required: true, max: today() }, { name: "endedAt", label: "Execution end date", type: "date", required: true, max: today() }]} />;
+        break;
+      }
+      case "COMPLETED": {
+        const cert = p.documents.some((d) => d.type === "COMPLETION_CERTIFICATE");
+        body = <SimpleStageForm p={p} stage={s} label="Mark project complete"
+          note={<p className={cert ? "hint" : "notice"}>{cert ? "Signed completion certificate uploaded." : "Upload the signed completion certificate under Documents first (FR-033)."} Alerts to the Office Executive arrive with notifications (Phase 3).</p>} />;
+        break;
+      }
+      default:
+        body = <p className="hint">Built in Phase 2 (payment collection and incentives).</p>;
+    }
+    blocks.push(<Block key={s} id={s} title={title(s)} source={src}>{body}</Block>);
+  }
+
+  const initiated = p.completedStages.includes("PROJECT_INITIATED");
+  if (initiated && is("OFFICE_EXECUTIVE")) {
+    blocks.push(
+      <Block key="team" id="team" title="Assign project team" source="FR-014">
+        {p.loanRequired && <AssignForm p={p} role="LOAN_OFFICER" label="Loan Officer" people={ctx.people} />}
+        <AssignForm p={p} role="DISCOM_OFFICER" label="DISCOM Officer" people={ctx.people} />
+        <AssignForm p={p} role="PROJECT_ENGINEER" label="Project Engineer" people={ctx.people} />
+      </Block>,
+    );
+  }
+  if (initiated && is("PROJECT_ENGINEER") && !p.completedStages.includes("INSTALLATION_DONE")) {
+    blocks.push(
+      <Block key="sup" id="sup" title="Site Supervisor for execution" source="FR-015">
+        <AssignForm p={p} role="SITE_SUPERVISOR" label="Site Supervisor" people={ctx.people} />
+        {p.completedStages.includes("PROJECT_PLANNED") && <RescheduleForm p={p} />}
+      </Block>,
+    );
+  }
+  if (is("SALES") && p.loan?.status === "APPROVED" && p.loan.approvedAmount && Number(p.loan.approvedAmount) !== Number(p.loan.requestedAmount) && !p.loan.clientReconfirmedAt) {
+    blocks.push(<Block key="reconf" id="reconf" title="Re-confirm loan terms with client" source="FR-018"><LoanReconfirm p={p} /></Block>);
+  }
+  if (is("DISCOM_OFFICER") && p.completedStages.includes("DISCOM_APPLIED") && !p.completedStages.includes("FINAL_DISCOM_APPROVED") && !mine.includes("FINAL_DISCOM_APPROVED")) {
+    blocks.push(<Block key="dc" id="dc" title="Update DISCOM status" source="FR-022"><DiscomForm p={p} /></Block>);
+  }
+  if (p.completedStages.includes("COMPLETED") && (is("PROJECT_ENGINEER") || p.install?.trainingAssigneeId === meId)) {
+    blocks.push(<Block key="tr" id="tr" title="Client training" source="FR-032, FR-035"><TrainingForm p={p} people={ctx.people} role={role} meId={meId} /></Block>);
+  }
+  if (initiated && is("SALES")) {
+    blocks.push(<Block key="pay" id="pay" title="Log a payment" source="FR-020, FR-036, FR-038"><LogPaymentForm p={p} /></Block>);
+  }
+  const toVerify = p.payments.filter((x) => x.kind !== "ADVANCE" && x.status === "LOGGED");
+  if (toVerify.length && is("ACCOUNTS")) {
+    blocks.push(
+      <Block key="ver" id="ver" title="Verify payments" source="FR-020, FR-037">
+        {toVerify.map((x) => (
+          <div key={x.id} style={{ marginBottom: 12 }}>
+            <p style={{ margin: "0 0 6px" }}>{x.kind.replace(/_/g, " ").toLowerCase()} · ₹{Number(x.amount).toLocaleString("en-IN")} · {x.mode} · UTR {x.utr}</p>
+            <VerifyPayment projectId={p.id} paymentId={x.id} />
+          </div>
+        ))}
+      </Block>,
+    );
+  }
+
+  if (blocks.length === 0) return <p className="empty">Nothing here is waiting on your role.</p>;
+  return <div className="actions">{blocks}</div>;
 }
 
 function StageForm({ stage, ctx }: { stage: Stage; ctx: ActionContext }) {
