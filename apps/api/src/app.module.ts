@@ -5,6 +5,10 @@ import { JwtModule } from "@nestjs/jwt";
 import { ConfigController } from "./admin/config.controller";
 import { IncentivesController } from "./admin/incentives.controller";
 import { AuthController } from "./auth/auth.controller";
+import { AutomationController } from "./automation/automation.controller";
+import { AutomationService } from "./automation/automation.service";
+import { EventBus } from "./automation/event-bus";
+import { WorkController } from "./automation/work.controller";
 import { AuthGuard } from "./auth/auth.guard";
 import { AuditService } from "./common/audit.service";
 import { ConfigParamsService } from "./common/config-params.service";
@@ -31,7 +35,7 @@ import { LocalDiskStorage, StorageService } from "./storage/storage.service";
       },
     }),
   ],
-  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController, TracksController, DocumentsController, ConfigController, IncentivesController],
-  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, { provide: StorageService, useClass: LocalDiskStorage }, { provide: APP_GUARD, useClass: AuthGuard }],
+  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController, TracksController, DocumentsController, ConfigController, IncentivesController, WorkController, AutomationController],
+  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, EventBus, AutomationService, { provide: StorageService, useClass: LocalDiskStorage }, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

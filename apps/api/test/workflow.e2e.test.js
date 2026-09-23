@@ -8,6 +8,7 @@ const path = require("node:path");
 
 process.env.DATABASE_URL ??= "postgresql://solarcrm:solarcrm@localhost:5432/solarcrm?schema=public";
 process.env.JWT_SECRET ??= "test-secret";
+process.env.AUTOMATION_TICK = "off"; // tests drive the SLA check explicitly
 
 let app;
 let base;
@@ -30,6 +31,7 @@ after(async () => {
     const { PrismaClient } = require("@prisma/client");
     const prisma = new PrismaClient();
     await prisma.auditLog.deleteMany({ where: { entityId: { in: created } } });
+    await prisma.automationRun.deleteMany({ where: { projectId: { in: created } } });
     await prisma.project.deleteMany({ where: { id: { in: created } } });
     for (const pid of created) require("node:fs").rmSync(path.join(process.cwd(), "storage", pid), { recursive: true, force: true });
     await prisma.$disconnect();
@@ -402,4 +404,67 @@ test("schedule, collection and incentive (Phase 2)", async () => {
   assert.equal(mine.partnerCommissionAmount, "10500");
   assert.equal(mine.incentiveAmount, null);
   await admin("DELETE", `/config/incentive.fixedPct/users/${salesId}`);
+});
+
+test("automation: routing, suggestions, follow-ups and SLA (Phase 2b)", async () => {
+  const sales = await login("sales@solarcrm.local");
+  const admin = await login("admin@solarcrm.local");
+  const accounts = await login("accounts@solarcrm.local");
+  const settle = () => new Promise((r) => setTimeout(r, 400)); // automation reacts to events asynchronously
+  const users = (await sales("GET", "/users")).body;
+  const idOf = (role) => users.find((u) => u.role === role).id;
+
+  let r = await sales("POST", "/projects", { customerName: "E2E Auto", phone: "9800000005", address: "Baner, Pune 411045", leadSource: "DIRECT" });
+  const id = r.body.id;
+  created.push(id);
+  await settle();
+
+  // FR-A01: routing suggestion lands in the manager (Admin) queue, not with Sales
+  let work = (await admin("GET", "/work")).body;
+  const route = work.tasks.find((t) => t.projectId === id && t.kind === "ASSIGNMENT");
+  assert.ok(route, "routing suggestion for admin");
+  assert.equal(route.suggestion.kind, "OWNER");
+  assert.equal((await sales("POST", `/tasks/${route.id}/apply`)).status, 404); // not Sales' task
+  assert.equal((await admin("POST", `/tasks/${route.id}/apply`)).status, 200);
+
+  // FR-A03: new-lead follow-ups for the owner; FR-A04: first-touch SLA started
+  work = (await sales("GET", "/work")).body;
+  const fus = work.tasks.filter((t) => t.projectId === id && t.kind === "FOLLOW_UP");
+  assert.equal(fus.length, 3);
+  assert.ok(work.clocks.some((c) => c.projectId === id && c.stage === "REQUIREMENT_CAPTURED" && c.state === "OK"));
+  assert.equal((await sales("POST", `/tasks/${fus[0].id}/snooze`, { hours: 2 })).status, 200);
+
+  // Capturing the requirement cancels those follow-ups and opens a supervisor suggestion for Sales
+  await sales("POST", `/projects/${id}/stages/REQUIREMENT_CAPTURED/complete`, { input: { requiredKw: 3, loanRequired: false, projectType: "Residential", packageName: "Standard" } });
+  await settle();
+  work = (await sales("GET", "/work")).body;
+  assert.equal(work.tasks.filter((t) => t.projectId === id && t.kind === "FOLLOW_UP").length, 0);
+  const sup = work.tasks.find((t) => t.projectId === id && t.kind === "ASSIGNMENT");
+  assert.equal(sup.suggestion.role, "SITE_SUPERVISOR");
+  assert.equal(sup.suggestion.userId, idOf("SITE_SUPERVISOR"));
+  r = await sales("POST", `/tasks/${sup.id}/apply`);
+  assert.equal(r.status, 200);
+  const detail = (await sales("GET", `/projects/${id}`)).body;
+  assert.ok(detail.completedStages.includes("SUPERVISOR_ASSIGNED"));
+
+  // SLA breach escalates to the Admin queue (clock moved back in time directly in the DB)
+  const { PrismaClient } = require("@prisma/client");
+  const prisma = new PrismaClient();
+  await prisma.slaTimer.updateMany({ where: { projectId: id, stage: "VISIT_SCHEDULED" }, data: { startedAt: new Date(Date.now() - 30 * 3600_000) } });
+  await prisma.$disconnect();
+  assert.equal((await admin("POST", "/automation/tick")).status, 200);
+  work = (await admin("GET", "/work")).body;
+  assert.ok(work.tasks.some((t) => t.projectId === id && t.kind === "SLA_ESCALATION"));
+  const runs = (await admin("GET", "/automation/runs")).body;
+  assert.ok(runs.some((x) => x.projectId === id && x.outcome === "SLA_BREACHED"));
+
+  // FR-A05: rules are validated and only Admin can reach the console
+  const rules = (await admin("GET", "/automation/rules")).body;
+  const sla = rules.find((x) => x.kind === "SLA");
+  assert.equal((await admin("PUT", `/automation/rules/${sla.id}`, { config: { targetHours: -1 } })).status, 422);
+  assert.equal((await accounts("GET", "/automation/rules")).status, 403);
+  const routing = rules.find((x) => x.kind === "ROUTING");
+  const dry = (await admin("POST", `/automation/rules/${routing.id}/dry-run`)).body;
+  assert.equal(dry[0].role, "SALES");
+  assert.ok(dry[0].pick.userId);
 });

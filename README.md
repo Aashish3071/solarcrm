@@ -5,19 +5,21 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 2 is complete. All 23 stages now work end to end.
+- **Phase:** Phase 2b (automation) is complete.
 - **Progress:**
   - Phase 0: foundations.
   - Phase 1: stages 1–21 with documents.
-  - Phase 2:
-    - Payment schedules: dated milestones that must add up to the final cost.
-    - Overdue receivables and a Schedules tab.
-    - Stage 22: payment collection closes only when every amount is received and verified.
-    - Stage 23: the incentive and partner commission are calculated automatically. Results are marked provisional until the client confirms the 3–4% formula and the partner rules.
-    - Settings & Data: editable rules and masters, per-salesperson overrides (FR-043), and an audit of old and new values.
-    - An Incentives page, scoped by role.
-  - Tests: 44 unit and 6 end-to-end.
-- **Next step:** Phase 2b (automation): lead auto-routing, work auto-assignment, follow-up cadences, SLA timers with escalation, the My Work screen and the Automation console.
+  - Phase 2: schedules, collection and incentives (stages 22–23).
+  - Phase 2b, added at the client's request (addendum FR-A01–A05):
+    - Lead routing: round-robin, least-load or PIN-code territory, skipping people who are away or at capacity, with a manager queue as fallback.
+    - Work-assignment suggestions for Site Supervisor, Office Executive, Loan and DISCOM Officer, and Project Engineer.
+    - Follow-up cadences that stop when their stage moves on.
+    - SLA timers with warn, breach and escalation. The check runs every minute and survives restarts because it is database-backed.
+    - My Work (tasks, snooze, apply or override a suggestion) and dashboard "Today at a glance" tiles.
+    - Automation console: rules, dry run, availability and territories, and a run log. Managers can reassign a lead's owner.
+    - Rules start in suggest mode, and every change is versioned and audited.
+  - Tests: 54 unit and 7 end-to-end.
+- **Next step:** Phase 3 adds notifications (in-app, WhatsApp, SMS and email through one service, driven by the Booklet §9 matrix) and bank-statement reconciliation (CSV import with UTR auto-match).
 
 ## Layout
 

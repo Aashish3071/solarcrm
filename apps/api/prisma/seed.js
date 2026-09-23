@@ -52,6 +52,29 @@ async function main() {
     await prisma.configParam.upsert({ where: { key }, update: {}, create: { key, value, description } });
   }
 
+  // Automation defaults (open points 15–18): suggest-mode first, editable in the console.
+  const RULES = [
+    { name: "New lead routing", kind: "ROUTING", trigger: "LEAD_CREATED", mode: "SUGGEST", config: { strategy: "ROUND_ROBIN", role: "SALES", onlyPartnerLeads: false } },
+    { name: "Suggest Site Supervisor", kind: "ASSIGNMENT", trigger: "SUPERVISOR_ASSIGNED", mode: "SUGGEST", config: { strategy: "LEAST_LOAD", role: "SITE_SUPERVISOR" } },
+    { name: "Suggest Office Executive", kind: "ASSIGNMENT", trigger: "PROJECT_INITIATED", mode: "SUGGEST", config: { strategy: "LEAST_LOAD", role: "OFFICE_EXECUTIVE" } },
+    { name: "Suggest project team", kind: "ASSIGNMENT", trigger: "GOV_REGISTERED", mode: "SUGGEST", config: { strategy: "LEAST_LOAD", roles: ["LOAN_OFFICER", "DISCOM_OFFICER", "PROJECT_ENGINEER"] } },
+    { name: "New lead follow-up", kind: "FOLLOW_UP", trigger: "REQUIREMENT_CAPTURED", mode: "AUTO", config: { title: "Call the customer to capture the requirement", offsetsHours: [1, 24, 72] } },
+    { name: "Chase customer confirmation", kind: "FOLLOW_UP", trigger: "CUSTOMER_CONFIRMED", mode: "AUTO", config: { title: "Follow up for customer confirmation", offsetsHours: [24, 72] } },
+    { name: "Re-confirm loan terms", kind: "FOLLOW_UP", trigger: "LOAN_PROCESSED", mode: "AUTO", config: { title: "Check loan progress with the bank", offsetsHours: [72] } },
+    { name: "Lead first touch", kind: "SLA", trigger: "REQUIREMENT_CAPTURED", mode: "AUTO", config: { targetHours: 24, warnPct: 80, escalateTo: "ADMIN" } },
+    { name: "Visit scheduling", kind: "SLA", trigger: "VISIT_SCHEDULED", mode: "AUTO", config: { targetHours: 24, warnPct: 80, escalateTo: "ADMIN" } },
+    { name: "Payment verification", kind: "SLA", trigger: "PAYMENT_VERIFIED", mode: "AUTO", config: { targetHours: 4, warnPct: 80, escalateTo: "ADMIN" } },
+    { name: "Government registration", kind: "SLA", trigger: "GOV_REGISTERED", mode: "AUTO", config: { targetHours: 72, warnPct: 80, escalateTo: "ADMIN" } },
+    { name: "DISCOM application", kind: "SLA", trigger: "DISCOM_APPLIED", mode: "AUTO", config: { targetHours: 72, warnPct: 80, escalateTo: "ADMIN" } },
+    { name: "Material readiness", kind: "SLA", trigger: "MATERIAL_READY", mode: "AUTO", config: { targetHours: 72, warnPct: 80, escalateTo: "PROJECT_ENGINEER" } },
+    { name: "Dispatch to site", kind: "SLA", trigger: "RECEIVED_AT_SITE", mode: "AUTO", config: { targetHours: 48, warnPct: 80, escalateTo: "PROJECT_ENGINEER" } },
+  ];
+  for (const r of RULES) {
+    const existing = await prisma.automationRule.findFirst({ where: { name: r.name } });
+    if (!existing) await prisma.automationRule.create({ data: r });
+  }
+
+  console.log(`Seeded ${RULES.length} automation rules.`);
   console.log(`Seeded ${USERS.length + 1} users (password: ${DEV_PASSWORD}), 2 partners, ${CONFIG.length} config rules.`);
 }
 

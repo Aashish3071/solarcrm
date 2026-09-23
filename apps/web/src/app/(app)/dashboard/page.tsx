@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { STAGES, STAGE_DEFS } from "@solarcrm/shared";
 import { api, type Me } from "@/lib/server-api";
+import type { WorkData } from "@/lib/types";
 
 interface Summary {
   leads: { today: number; week: number; month: number };
@@ -31,10 +32,11 @@ function greeting(d: Date) {
 }
 
 export default async function DashboardPage() {
-  const [me, s, projects] = await Promise.all([
+  const [me, s, projects, work] = await Promise.all([
     api<Me>("/auth/me"),
     api<Summary>("/dashboard/summary"),
     fetchProjects(),
+    api<WorkData>("/work").catch(() => null),
   ]);
   const now = new Date();
   const date = now.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric" }).replace(/,/g, "");
@@ -83,6 +85,18 @@ export default async function DashboardPage() {
           </div>
         </section>
       </div>
+
+      {work && (
+        <section className="card flush" style={{ marginBottom: 18 }} aria-labelledby="glance">
+          <div className="card-head"><div><h2 className="label" id="glance">Today at a glance</h2><p>Your workload right now</p></div><Link href="/work">My Work</Link></div>
+          <div className="tiles">
+            <div className={`tile ${work.counts.overdue ? "red" : ""}`}><b>{work.counts.overdue}</b><span>Overdue</span></div>
+            <div className="tile amber"><b>{work.counts.dueToday}</b><span>Due today</span></div>
+            <div className="tile green"><b>{work.counts.completedToday}</b><span>Completed today</span></div>
+            <div className={`tile ${work.counts.slaBreached ? "red" : ""}`}><b>{work.counts.slaBreached}</b><span>SLA breaches</span></div>
+          </div>
+        </section>
+      )}
 
       <div className="grid g2">
         <section className="card flush" aria-labelledby="myday">

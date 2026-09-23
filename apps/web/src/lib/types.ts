@@ -1,3 +1,4 @@
+import type { TaskRow } from "@/components/TaskActions";
 import type { Role, Stage } from "@solarcrm/shared";
 
 export interface ProjectRow {
@@ -118,3 +119,10 @@ export const PAYMENT_KIND_LABEL: Record<Payment["kind"], string> = {
   LOAN_INSTALMENT_2: "Loan instalment 2",
   COLLECTION: "Collection",
 };
+
+export interface WorkData {
+  counts: { overdue: number; dueToday: number; completedToday: number; next7Days: number; slaBreached: number };
+  tasks: TaskRow[];
+  clocks: { projectId: string; projectCode: string; customerName: string; stage: string; label: string; state: "OK" | "WARN" | "BREACHED" | "PAUSED"; dueAt: string; remainingMs: number }[];
+}
+

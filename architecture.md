@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 2 complete (all 23 stages). **Next:** Phase 2b adds automation: routing, follow-ups, assignment and SLAs.
+**Current phase:** Phase 2b complete (automation). **Next:** Phase 3 adds notifications and bank-statement reconciliation.
 
 ## System overview
 
@@ -17,6 +17,10 @@ NestJS API (:4000, modular monolith)
    ├─ Documents: upload (role + type + content-sniffed MIME + 10 MB), scoped download
    │    └─ StorageService → LocalDiskStorage (swap for S3/GCS/Azure, open point 14)
    ├─ Dashboard: role-scoped counts and "waiting on you"
+   ├─ Automation (FR-A01–A05): EventBus ← ProjectsService emits lead.created / stages.changed
+   │    ├─ AutomationService: routing, assignment suggestions, follow-ups, SLA timers, 60 s DB-backed tick
+   │    ├─ Work: My Work tasks + SLA clocks; apply/override suggestions via normal workflow endpoints
+   │    └─ Automation console: rules (versioned), dry run, availability, run log
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
    ├─ Config (admin): rules + masters editor, per-user overrides `<key>@<userId>`, audited
@@ -68,6 +72,10 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `ProjectPlan` | 1B | Revisit, planned/actual dates, reschedules, material timestamps and remarks (FR-023–030) |
 | `Installation` | 1B | Execution dates, training assignee and completion (FR-031–035) |
 | `PaymentScheduleItem` | 2 | Dated milestones (payer, amount) totalling the final cost; basis for overdue (FR-007, FR-036) |
+| `AutomationRule`, `AutomationRun` | 2b | Rules as data (kind, trigger, config, mode, version) and every decision made |
+| `Task` | 2b | Follow-ups, assignment suggestions, SLA escalations; owned by a person or a role queue; dedupe key |
+| `SlaTimer` | 2b | One live clock per project and stage: start, pause, warn, breach, resolve |
+| `User` (+) | 2b | awayUntil, maxOpen, territories, lastAssignedAt for routing |
 | `IncentiveResult` | 2 | Incentive and partner commission with the rules snapshot used (FR-039–043) |
 
 ### How a stage is completed
@@ -86,8 +94,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 1A | Leads, site visits, finalize & advance, payment verification (stages 1–10) | **Done** |
 | 1B | Initiation team, Gov, Loan, DISCOM, design, planning, material, installation, documents (stages 10–21) | **Done** |
 | 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | **Done** |
-| 2b | Automation: routing, follow-ups, assignment, SLAs | Next |
-| 3 | Notifications, bank-statement reconciliation | Planned |
+| 2b | Automation: routing, follow-ups, assignment, SLAs | **Done** |
+| 3 | Notifications, bank-statement reconciliation | Next |
 | 3b | AI Advisor | Planned |
 | 4 | Connectors, storage hardening, reporting | Planned |
 | 5 | Hardening and go-live | Planned |
@@ -108,3 +116,6 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - Incentive interpretation (provisional, open points 10 and 11). At or below 3% discount: 1% + 30% × (3% − discount). Between 3% and 4%: linear down to 0%, which matches the 3.5% → 0.5% example. Full-partner commission = 5% + (ceiling − discount). Lead-only partners earn 0 until rules arrive. Every result stores the rules it used.
 - Stage 22 closes only when verified receipts reach the final cost and no payment is still awaiting Accounts. Stage 23 then runs as SYSTEM.
 - Overdue = amounts scheduled up to today minus verified receipts, per project.
+- Automation triggers fire when a stage opens. Suggest mode creates a task for the normal assigner. Auto mode assigns immediately; for stage-bound roles it completes the stage as SYSTEM, and all gates still apply.
+- SLA clocks run in wall-clock hours. Business-hours and holiday calendars, and pause-while-waiting, are not built yet: the fields exist (`pausedAt`, `pausedMs`) but nothing sets them.
+- The SLA check uses a database-polling interval rather than BullMQ, so state lives in Postgres and survives restarts. Redis stays reserved for scale-out.

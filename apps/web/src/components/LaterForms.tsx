@@ -324,3 +324,27 @@ export function VerifyPayment({ projectId, paymentId }: { projectId: string; pay
 }
 
 export { dateOnly, today };
+
+/** FR-A05: a manager can reassign the lead owner at any time, with a reason. */
+export function OwnerForm({ p, people }: { p: ProjectDetail; people: Person[] }) {
+  const { run, busy, error } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const f = new FormData(e.currentTarget);
+      run("PUT", `/projects/${p.id}/owner`, { userId: val(f, "owner"), reason: val(f, "reason") });
+    }}>
+      <div className="form-grid">
+        <Field label="Sales owner" htmlFor="own-user">
+          <select id="own-user" name="owner" required defaultValue="">
+            <option value="" disabled>Select</option>
+            {people.filter((x) => x.role === "SALES").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Reason" htmlFor="own-reason"><input id="own-reason" name="reason" required /></Field>
+      </div>
+      <Errors error={error} />
+      <Submit busy={busy} label="Reassign owner" kind="" />
+    </form>
+  );
+}

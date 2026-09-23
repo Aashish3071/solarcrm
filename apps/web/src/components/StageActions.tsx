@@ -6,7 +6,7 @@ import { completeStage, useAction } from "@/lib/client-api";
 import type { ProjectDetail } from "@/lib/types";
 import { Errors, Field, num, val } from "./FormBits";
 import {
-  AssignForm, DiscomForm, GovForm, LoanForm, LoanReconfirm, LogPaymentForm, RescheduleForm,
+  AssignForm, DiscomForm, OwnerForm, GovForm, LoanForm, LoanReconfirm, LogPaymentForm, RescheduleForm,
   SimpleStageForm, TrainingForm, VerifyPayment, dateOnly, today,
 } from "./LaterForms";
 import { CloseCollection, ScheduleForm } from "./ScheduleForm";
@@ -158,6 +158,10 @@ export function StageActions({ p, ctx, meId }: { p: ProjectDetail; ctx: ActionCo
         ))}
       </Block>,
     );
+  }
+
+  if (admin && !p.completedStages.includes("INCENTIVE_CALCULATED")) {
+    blocks.push(<Block key="own" id="own" title="Reassign lead owner" source="FR-A05"><OwnerForm p={p} people={ctx.people} /></Block>);
   }
 
   if (blocks.length === 0) return <p className="empty">Nothing here is waiting on your role.</p>;

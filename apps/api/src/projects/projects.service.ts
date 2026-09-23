@@ -18,6 +18,7 @@ import { AuditService } from "../common/audit.service";
 import type { AuthUser } from "../common/auth-context";
 import { ConfigParamsService } from "../common/config-params.service";
 import { RuleViolation } from "../common/validation";
+import { EventBus } from "../automation/event-bus";
 import { applyEffects, preCheck, serverFacts } from "./stage-effects";
 import { PrismaService } from "../prisma.service";
 
@@ -56,7 +57,18 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly config: ConfigParamsService,
+    private readonly bus: EventBus,
   ) {}
+
+  private openOf(p: Project): Stage[] {
+    return availableStages({ completed: p.completedStages as Stage[], skipped: p.skippedStages as Stage[], loanRequired: p.loanRequired });
+  }
+
+  /** Automation completes stage-bound assignments as SYSTEM in AUTO mode; every gate still applies. */
+  completeStageAsSystem(id: string, stage: Stage, input: StageInput) {
+    const system: AuthUser = { id: "system", name: "Automation", email: "", role: "ADMIN", partnerId: null };
+    return this.completeStage(system, id, stage, input, "SYSTEM");
+  }
 
   /** Row-level scope (Booklet §10): who can see which projects. */
   scope(user: AuthUser): Prisma.ProjectWhereInput {
@@ -188,13 +200,16 @@ export class ProjectsService {
       },
     });
     await this.audit.record({ actorId: user.id, action: "project.lead_created", entity: "Project", entityId: project.id });
+    this.bus.emit("lead.created", { projectId: project.id });
+    this.bus.emit("stages.changed", { projectId: project.id, openBefore: [] });
     return this.get(user, project.id);
   }
 
-  async completeStage(user: AuthUser, id: string, stage: Stage, input: StageInput) {
+  async completeStage(user: AuthUser, id: string, stage: Stage, input: StageInput, actorRole: string = user.role) {
     const p = await this.prisma.project.findFirst({ where: { id, ...this.scope(user) } });
     if (!p) throw new NotFoundException("Project not found.");
 
+    const openBefore = this.openOf(p);
     const state = await this.state(p);
     const durationDays = await this.config.number("planning.defaultDurationDays", 12);
     input = { ...input, ...(await serverFacts(this.prisma, p, stage, durationDays)) };
@@ -226,11 +241,12 @@ export class ProjectsService {
       }
       await applyEffects(tx, p, stage, input, user);
       await tx.stageEvent.create({
-        data: { projectId: id, stage, action: "COMPLETED", actorId: user.id, actorRole: user.role, data: input as Prisma.InputJsonValue },
+        data: { projectId: id, stage, action: "COMPLETED", actorId: user.id, actorRole, data: input as Prisma.InputJsonValue },
       });
     });
     await this.audit.record({ actorId: user.id, action: "project.stage_completed", entity: "Project", entityId: id, meta: { stage } });
     if (stage === "PAYMENTS_COLLECTED") await this.calculateIncentive(id);
+    this.bus.emit("stages.changed", { projectId: id, openBefore });
     return this.get(user, id);
   }
 
@@ -288,6 +304,7 @@ export class ProjectsService {
     if (!availableStages(state).includes("PAYMENT_VERIFIED")) {
       throw new RuleViolation(["There is no logged payment awaiting verification."]);
     }
+    const openBefore = this.openOf(p);
     const reopen = stagesReopenedByPaymentRejection();
     await this.prisma.$transaction([
       this.prisma.payment.updateMany({
@@ -305,6 +322,7 @@ export class ProjectsService {
       ),
     ]);
     await this.audit.record({ actorId: user.id, action: "payment.rejected", entity: "Project", entityId: id, meta: { reason } });
+    this.bus.emit("stages.changed", { projectId: id, openBefore });
     return this.get(user, id);
   }
 
@@ -324,6 +342,7 @@ export class ProjectsService {
       update: { userId, assignedBy: user.id, assignedAt: new Date() },
     });
     await this.audit.record({ actorId: user.id, action: "project.assigned", entity: "Project", entityId: id, meta: { role, userId } });
+    this.bus.emit("stages.changed", { projectId: id, openBefore: this.openOf(p) });
     return this.get(user, id);
   }
 

@@ -45,6 +45,11 @@ model User {
   partnerId    String?
   partner      Partner? @relation(fields: [partnerId], references: [id])
   createdAt    DateTime @default(now())
+  /// Automation (FR-A01/A02): availability, capacity and territory for routing.
+  awayUntil      DateTime?
+  maxOpen        Int?
+  territories    String[]
+  lastAssignedAt DateTime?
 
   ownedProjects Project[]           @relation("ProjectOwner")
   assignments   ProjectAssignment[]
@@ -99,6 +104,8 @@ model Project {
   install     Installation?
   schedule    PaymentScheduleItem[]
   incentive   IncentiveResult?
+  tasks       Task[]
+  slaTimers   SlaTimer[]
 
   @@index([ownerId])
   @@index([partnerId])
@@ -360,4 +367,101 @@ model IncentiveResult {
   rules                   Json
   provisional             Boolean  @default(true)
   calculatedAt            DateTime @default(now())
+}
+
+enum RuleKind {
+  ROUTING
+  ASSIGNMENT
+  FOLLOW_UP
+  SLA
+}
+
+enum RuleMode {
+  SUGGEST
+  AUTO
+}
+
+/// Addendum FR-A05: automation rules as data; edits bump the version and are audited.
+model AutomationRule {
+  id        String   @id @default(cuid())
+  name      String
+  kind      RuleKind
+  /// Stage whose opening triggers the rule, or LEAD_CREATED for routing.
+  trigger   String
+  config    Json
+  mode      RuleMode @default(SUGGEST)
+  active    Boolean  @default(true)
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+  runs      AutomationRun[]
+
+  @@index([kind, trigger, active])
+}
+
+model AutomationRun {
+  id        String          @id @default(cuid())
+  ruleId    String?
+  rule      AutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  projectId String?
+  outcome   String
+  detail    Json
+  at        DateTime        @default(now())
+
+  @@index([at])
+}
+
+enum TaskKind {
+  FOLLOW_UP
+  ASSIGNMENT
+  SLA_ESCALATION
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+  CANCELLED
+}
+
+/// My Work items. Owned by a person, or by a role queue when ownerId is null.
+model Task {
+  id           String     @id @default(cuid())
+  projectId    String
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  kind         TaskKind
+  title        String
+  stage        String?
+  ownerId      String?
+  ownerRole    String
+  dueAt        DateTime
+  status       TaskStatus @default(OPEN)
+  /// Suggested assignee for ASSIGNMENT tasks.
+  suggestion   Json?
+  dedupeKey    String     @unique
+  createdAt    DateTime   @default(now())
+  completedAt  DateTime?
+  completedById String?
+
+  @@index([ownerId, status, dueAt])
+  @@index([ownerRole, status, dueAt])
+}
+
+/// FR-A04: one live SLA clock per project and stage.
+model SlaTimer {
+  id           String    @id @default(cuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage        String
+  ruleId       String?
+  targetHours  Float
+  warnPct      Int
+  escalateTo   String
+  startedAt    DateTime
+  pausedAt     DateTime?
+  pausedMs     Int       @default(0)
+  warnedAt     DateTime?
+  breachedAt   DateTime?
+  resolvedAt   DateTime?
+
+  @@unique([projectId, stage])
+  @@index([resolvedAt])
 }
