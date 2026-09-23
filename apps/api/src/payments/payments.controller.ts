@@ -1,6 +1,9 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, ForbiddenException, Get, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { Prisma } from "@prisma/client";
-import { overdueAmount } from "@solarcrm/shared";
+import { matchPayment, overdueAmount, parseStatement, type StatementLine } from "@solarcrm/shared";
+import { AuditService } from "../common/audit.service";
+import { RuleViolation } from "../common/validation";
 import { CurrentUser, RequireModule, type AuthUser } from "../common/auth-context";
 import { PrismaService } from "../prisma.service";
 import { ProjectsService, projectCode } from "../projects/projects.service";
@@ -13,6 +16,7 @@ export class PaymentsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projects: ProjectsService,
+    private readonly audit: AuditService,
   ) {}
 
   /** FR-010 / FR-037: payments logged by Sales, awaiting Accounts, oldest first. */
@@ -24,17 +28,54 @@ export class PaymentsController {
       include: { project: { select: { id: true, seq: true, createdAt: true, customerName: true } } },
       take: 200,
     });
-    return rows.map((p) => ({
-      id: p.id,
-      projectId: p.project.id,
-      projectCode: projectCode(p.project),
-      customerName: p.project.customerName,
-      kind: p.kind,
-      amount: p.amount.toString(),
-      mode: p.mode,
-      utr: p.utr,
-      loggedAt: p.loggedAt,
-    }));
+    return Promise.all(
+      rows.map(async (p) => ({
+        id: p.id,
+        projectId: p.project.id,
+        projectCode: projectCode(p.project),
+        customerName: p.project.customerName,
+        kind: p.kind,
+        amount: p.amount.toString(),
+        mode: p.mode,
+        utr: p.utr,
+        loggedAt: p.loggedAt,
+        bankMatch: await this.bankMatch(p.utr, Number(p.amount)),
+      })),
+    );
+  }
+
+  /** Booklet §6.4: suggestion only; Accounts still decides. */
+  private async bankMatch(utr: string, amount: number) {
+    const lines = await this.prisma.bankStatementLine.findMany({
+      where: { OR: [{ reference: { equals: utr, mode: "insensitive" } }, { narration: { contains: utr, mode: "insensitive" } }] },
+      take: 5,
+    });
+    const asLines: StatementLine[] = lines.map((l) => ({ txnDate: l.txnDate.toISOString().slice(0, 10), amount: Number(l.amount), reference: l.reference, narration: l.narration }));
+    const m = matchPayment({ utr, amount }, asLines);
+    return { result: m.result, statementAmount: m.line?.amount ?? null, txnDate: m.line?.txnDate ?? null };
+  }
+
+  /** Booklet §6.4: import a bank statement CSV; duplicates across imports are ignored. */
+  @Post("statements")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  async importStatement(@CurrentUser() user: AuthUser, @UploadedFile() file: Express.Multer.File | undefined) {
+    if (user.role !== "ACCOUNTS" && user.role !== "ADMIN") throw new ForbiddenException("Only Accounts can import bank statements.");
+    if (!file?.buffer?.length) throw new RuleViolation(["Choose a CSV file."]);
+    const text = file.buffer.toString("utf8");
+    if (text.includes("\u0000")) throw new RuleViolation(["The file is not a CSV text file."]);
+    const { lines, errors } = parseStatement(text);
+    if (!lines.length) throw new RuleViolation(errors.length ? errors : ["No credit entries found in the file."]);
+    const imp = await this.prisma.bankStatementImport.create({
+      data: { fileName: file.originalname.slice(-120), uploadedById: user.id, lineCount: lines.length },
+    });
+    const created = await this.prisma.bankStatementLine.createMany({
+      data: lines.map((l) => ({ importId: imp.id, txnDate: new Date(l.txnDate), amount: l.amount, reference: l.reference, narration: l.narration })),
+      skipDuplicates: true,
+    });
+    const pending = await this.prisma.payment.findMany({ where: { status: "LOGGED", project: this.projects.scope(user) } });
+    const matched = (await Promise.all(pending.map((p) => this.bankMatch(p.utr, Number(p.amount))))).filter((m) => m.result === "MATCHED").length;
+    await this.audit.record({ actorId: user.id, action: "bank_statement.imported", entity: "BankStatementImport", entityId: imp.id, meta: { lines: lines.length, added: created.count } });
+    return { lines: lines.length, added: created.count, duplicates: lines.length - created.count, skippedRows: errors, pendingMatched: matched, pendingTotal: pending.length };
   }
 
   @Get("history")

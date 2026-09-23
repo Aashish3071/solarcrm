@@ -5,21 +5,19 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 2b (automation) is complete.
+- **Phase:** Phase 3 (notifications and reconciliation) is complete.
 - **Progress:**
-  - Phase 0: foundations.
-  - Phase 1: stages 1–21 with documents.
-  - Phase 2: schedules, collection and incentives (stages 22–23).
-  - Phase 2b, added at the client's request (addendum FR-A01–A05):
-    - Lead routing: round-robin, least-load or PIN-code territory, skipping people who are away or at capacity, with a manager queue as fallback.
-    - Work-assignment suggestions for Site Supervisor, Office Executive, Loan and DISCOM Officer, and Project Engineer.
-    - Follow-up cadences that stop when their stage moves on.
-    - SLA timers with warn, breach and escalation. The check runs every minute and survives restarts because it is database-backed.
-    - My Work (tasks, snooze, apply or override a suggestion) and dashboard "Today at a glance" tiles.
-    - Automation console: rules, dry run, availability and territories, and a run log. Managers can reassign a lead's owner.
-    - Rules start in suggest mode, and every change is versioned and audited.
-  - Tests: 54 unit and 7 end-to-end.
-- **Next step:** Phase 3 adds notifications (in-app, WhatsApp, SMS and email through one service, driven by the Booklet §9 matrix) and bank-statement reconciliation (CSV import with UTR auto-match).
+  - Phases 0–2b: the full 23-stage workflow, documents, schedules, incentives and automation.
+  - Phase 3, notifications (FR-044):
+    - In-app alerts when a stage opens for you, plus the Booklet §9 events: visit scheduled, payment verified or rejected, loan, DISCOM, material, installation complete, final DISCOM, and SLA delay.
+    - A bell with an inbox.
+    - An editable notification matrix.
+    - An outbox with retries. Messages are posted to an integration-layer webhook when `NOTIFY_WEBHOOK_URL` is set, and marked Skipped when no provider is configured.
+    - A delivery log.
+  - Phase 3, bank reconciliation (Booklet §6.4): bank-statement CSV import (duplicates ignored) and UTR auto-match shown in the Accounts queue as Matched, Amount differs or Not in statement. Accounts still approves every payment.
+  - The top-bar project search now works.
+  - Tests: 60 unit and 8 end-to-end.
+- **Next step:** Phase 3b builds the AI Advisor (summaries, lead finder, delay risk, message drafts and Q&A, limited to what the user's role can see, with confirm-to-act).
 
 ## Layout
 
@@ -44,6 +42,15 @@ pnpm dev                                  # API :4000, web :3100
 ```
 
 Seeded dev users (password `Solar@123`, dev only): `admin@`, `sales@`, `supervisor@`, `accounts@`, `office@`, `loan@`, `discom@`, `engineer@`, `store@`, `partner@` — all `@solarcrm.local`.
+
+## Optional integrations (environment)
+
+| Variable | Effect |
+|---|---|
+| `NOTIFY_WEBHOOK_URL` | External notifications (email, SMS, WhatsApp) are POSTed here in the Booklet §8.3 shape, e.g. to an n8n flow. Unset means they are marked Skipped. |
+| `NOTIFY_WEBHOOK_SECRET` | Sent as `x-solarcrm-secret` so the receiver can verify the caller. |
+| `STORAGE_DIR` | Where uploaded documents are stored (local disk). |
+| `AUTOMATION_TICK_MS`, `NOTIFY_TICK_MS` | Worker intervals (defaults 60 s and 30 s). |
 
 ## Tests
 

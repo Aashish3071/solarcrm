@@ -9,6 +9,8 @@ const path = require("node:path");
 process.env.DATABASE_URL ??= "postgresql://solarcrm:solarcrm@localhost:5432/solarcrm?schema=public";
 process.env.JWT_SECRET ??= "test-secret";
 process.env.AUTOMATION_TICK = "off"; // tests drive the SLA check explicitly
+process.env.NOTIFY_TICK = "off";
+delete process.env.NOTIFY_WEBHOOK_URL;
 
 let app;
 let base;
@@ -32,6 +34,8 @@ after(async () => {
     const prisma = new PrismaClient();
     await prisma.auditLog.deleteMany({ where: { entityId: { in: created } } });
     await prisma.automationRun.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.notification.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.bankStatementLine.deleteMany({ where: { reference: { startsWith: "RECON" } } });
     await prisma.project.deleteMany({ where: { id: { in: created } } });
     for (const pid of created) require("node:fs").rmSync(path.join(process.cwd(), "storage", pid), { recursive: true, force: true });
     await prisma.$disconnect();
@@ -467,4 +471,69 @@ test("automation: routing, suggestions, follow-ups and SLA (Phase 2b)", async ()
   const dry = (await admin("POST", `/automation/rules/${routing.id}/dry-run`)).body;
   assert.equal(dry[0].role, "SALES");
   assert.ok(dry[0].pick.userId);
+});
+
+test("notifications and bank reconciliation (Phase 3)", async () => {
+  const sales = await login("sales@solarcrm.local");
+  const admin = await login("admin@solarcrm.local");
+  const accounts = await login("accounts@solarcrm.local");
+  const settle = () => new Promise((r) => setTimeout(r, 400));
+  const users = (await sales("GET", "/users")).body;
+  const idOf = (role) => users.find((u) => u.role === role).id;
+
+  let r = await sales("POST", "/projects", { customerName: "E2E Notify", phone: "9800000006", email: "cust@example.com", address: "Delhi 110001", leadSource: "DIRECT" });
+  const id = r.body.id;
+  created.push(id);
+  await settle();
+
+  // FR-044: the stage owner is told when a stage is waiting on them
+  let inbox = (await sales("GET", "/notifications")).body;
+  assert.ok(inbox.items.some((n) => n.projectId === id && n.event === "STAGE_OPENED"));
+  const unread = inbox.unread;
+  assert.equal((await sales("POST", "/notifications/read-all")).status, 200);
+  assert.equal((await sales("GET", "/notifications")).body.unread, 0);
+  assert.ok(unread > 0);
+
+  const adm = (stage, input = {}) => admin("POST", `/projects/${id}/stages/${stage}/complete`, { input });
+  await adm("REQUIREMENT_CAPTURED", { requiredKw: 3, loanRequired: false, projectType: "Residential", packageName: "Standard" });
+  await adm("SUPERVISOR_ASSIGNED", { supervisorId: idOf("SITE_SUPERVISOR") });
+  await adm("VISIT_SCHEDULED", { scheduledAt: new Date(Date.now() + 3600_000).toISOString() });
+  await adm("VISIT_COMPLETED", { feasible: true, actualKw: 3 });
+  await adm("SALES_FINALIZED", { finalCost: 120000, discountPct: 1, paymentTerms: "50/50" });
+  await adm("CUSTOMER_CONFIRMED");
+  const utr = `RECON${Date.now()}`;
+  await adm("ADVANCE_LOGGED", { amount: 60000, mode: "NEFT", utr });
+
+  // Booklet §6.4: queue shows NOT_FOUND until the statement is imported, then MATCHED
+  let q = (await accounts("GET", "/payments/queue")).body.find((x) => x.utr === utr);
+  assert.equal(q.bankMatch.result, "NOT_FOUND");
+  const csv = `Txn Date,Narration,Chq/Ref No,Debit,Credit\n2026-09-20,NEFT CR ${utr},${utr},,"60,000.00"\n2026-09-20,ATM,,500,`;
+  const fd = new FormData();
+  fd.append("file", new Blob([csv]), "statement.csv");
+  const salesUpload = await fetch(`${base}/payments/statements`, { method: "POST", body: fd });
+  assert.equal(salesUpload.status, 401);
+  r = await accounts.upload("/payments/statements", "unused", Buffer.from(csv), "statement.csv");
+  assert.equal(r.status, 201);
+  assert.equal(r.body.lines, 1);
+  q = (await accounts("GET", "/payments/queue")).body.find((x) => x.utr === utr);
+  assert.equal(q.bankMatch.result, "MATCHED");
+  // Re-importing the same file adds nothing
+  r = await accounts.upload("/payments/statements", "unused", Buffer.from(csv), "statement.csv");
+  assert.equal(r.body.added, 0);
+
+  // Approval notifies Sales in-app and queues customer WhatsApp + email; no provider → SKIPPED, never "sent"
+  await accounts("POST", `/projects/${id}/stages/PAYMENT_VERIFIED/complete`, { input: { decision: "APPROVED" } });
+  await settle();
+  inbox = (await sales("GET", "/notifications")).body;
+  assert.ok(inbox.items.some((n) => n.projectId === id && n.event === "PAYMENT_VERIFIED"));
+  assert.equal((await admin("POST", "/notifications/deliver")).status, 200);
+  const log = (await admin("GET", "/notifications/log")).body.filter((n) => n.projectId === id && n.event === "PAYMENT_VERIFIED");
+  const toCustomer = log.filter((n) => n.address === "cust@example.com" || n.address === "9800000006");
+  assert.deepEqual(toCustomer.map((n) => n.channel).sort(), ["EMAIL", "WHATSAPP"]);
+  assert.ok(log.some((n) => n.address === "sales@solarcrm.local" && n.channel === "EMAIL")); // staff get email, never SMS
+  assert.ok(log.every((n) => n.status === "SKIPPED"));
+
+  // Matrix is editable by Admin only and validated
+  assert.equal((await admin("PUT", "/notifications/rules/PAYMENT_VERIFIED", { recipients: ["NOBODY"], channels: ["IN_APP"], active: true })).status, 400);
+  assert.equal((await sales("GET", "/notifications/rules")).status, 403);
 });

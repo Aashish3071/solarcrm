@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, LogOut, Menu, Sparkles, Sun, X } from "lucide-react";
+import { LogOut, Menu, Sparkles, Sun, X } from "lucide-react";
+import { Bell } from "./Bell";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -82,9 +83,7 @@ export function Shell({ user, children }: { user: ShellUser; children: React.Rea
             <div className="me-role">{user.roleLabel}</div>
           </div>
           <div className="me-actions">
-            <button className="icon-btn" aria-label="Notifications (arrive in Phase 3)" title="Notifications arrive in Phase 3" disabled>
-              <Bell aria-hidden="true" />
-            </button>
+            <Bell />
             <button className="icon-btn" onClick={logout} aria-label="Sign out" title="Sign out">
               <LogOut aria-hidden="true" />
             </button>
@@ -103,7 +102,9 @@ export function Shell({ user, children }: { user: ShellUser; children: React.Rea
             <span>Overview</span>
           </div>
           <div className="top-actions">
-            <input className="search" type="search" placeholder="Search CRM..." aria-label="Search CRM" disabled title="Search arrives in Phase 1" />
+            <form role="search" action="/projects" style={{ display: "contents" }}>
+              <input className="search" type="search" name="q" placeholder="Search name, phone or project code" aria-label="Search projects" />
+            </form>
             <button className="btn" type="button" disabled title="User guide arrives in Phase 5">? Guide</button>
           </div>
         </header>

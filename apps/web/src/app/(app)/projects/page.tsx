@@ -14,19 +14,23 @@ interface ProjectRow {
   currentStageNumber: number;
 }
 
-export default async function ProjectsPage() {
-  const rows = await api<ProjectRow[]>("/projects");
+export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams;
+  const needle = q?.trim().toLowerCase();
+  const rows = (await api<ProjectRow[]>("/projects")).filter(
+    (p) => !needle || p.customerName.toLowerCase().includes(needle) || p.code.toLowerCase().includes(needle) || (p as ProjectRow & { phone?: string }).phone?.includes(needle),
+  );
   return (
     <>
       <div className="page-head">
         <div>
           <h1>Projects</h1>
-          <p>Every lead and project through the 23 stages (FRD §5).</p>
+          <p>{needle ? `Results for "${q}"` : "Every lead and project through the 23 stages (FRD §5)."}</p>
         </div>
       </div>
       <section className="card flush">
         {rows.length === 0 ? (
-          <p className="empty">No projects yet. Leads are created from the Leads module (Phase 1).</p>
+          <p className="empty">{needle ? "No projects match your search." : "No projects yet. Create a lead from the Leads page."}</p>
         ) : (
           <div className="table-wrap">
             <table>

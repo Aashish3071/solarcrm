@@ -201,7 +201,7 @@ export class ProjectsService {
     });
     await this.audit.record({ actorId: user.id, action: "project.lead_created", entity: "Project", entityId: project.id });
     this.bus.emit("lead.created", { projectId: project.id });
-    this.bus.emit("stages.changed", { projectId: project.id, openBefore: [] });
+    this.bus.emit("stages.changed", { projectId: project.id, openBefore: [], completedBefore: [] });
     return this.get(user, project.id);
   }
 
@@ -246,7 +246,7 @@ export class ProjectsService {
     });
     await this.audit.record({ actorId: user.id, action: "project.stage_completed", entity: "Project", entityId: id, meta: { stage } });
     if (stage === "PAYMENTS_COLLECTED") await this.calculateIncentive(id);
-    this.bus.emit("stages.changed", { projectId: id, openBefore });
+    this.bus.emit("stages.changed", { projectId: id, openBefore, completedBefore: p.completedStages as Stage[] });
     return this.get(user, id);
   }
 
@@ -322,7 +322,8 @@ export class ProjectsService {
       ),
     ]);
     await this.audit.record({ actorId: user.id, action: "payment.rejected", entity: "Project", entityId: id, meta: { reason } });
-    this.bus.emit("stages.changed", { projectId: id, openBefore });
+    this.bus.emit("stages.changed", { projectId: id, openBefore, completedBefore: p.completedStages as Stage[] });
+    this.bus.emit("payment.decided", { projectId: id, paymentId: `advance:${Date.now()}`, approved: false, reason });
     return this.get(user, id);
   }
 
@@ -342,7 +343,7 @@ export class ProjectsService {
       update: { userId, assignedBy: user.id, assignedAt: new Date() },
     });
     await this.audit.record({ actorId: user.id, action: "project.assigned", entity: "Project", entityId: id, meta: { role, userId } });
-    this.bus.emit("stages.changed", { projectId: id, openBefore: this.openOf(p) });
+    this.bus.emit("stages.changed", { projectId: id, openBefore: this.openOf(p), completedBefore: p.completedStages as Stage[] });
     return this.get(user, id);
   }
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { VerifyPayment } from "@/components/LaterForms";
+import { StatementImport } from "@/components/StatementImport";
 import { VerifyForm } from "@/components/StageActions";
 import { ago, dateTime, inr } from "@/lib/format";
 import { api, type Me } from "@/lib/server-api";
@@ -15,6 +16,7 @@ interface QueueRow {
   mode: string;
   utr: string;
   loggedAt: string;
+  bankMatch: { result: "MATCHED" | "AMOUNT_MISMATCH" | "NOT_FOUND"; statementAmount: number | null; txnDate: string | null };
 }
 interface HistoryRow {
   id: string;
@@ -55,6 +57,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   ]);
   const schedules = tab === "schedules" ? await api<ScheduleRow[]>("/payments/schedules") : [];
   const canVerify = me.role === "ACCOUNTS" || me.role === "ADMIN";
+  const MATCH = {
+    MATCHED: { tag: "green", text: "Matched" },
+    AMOUNT_MISMATCH: { tag: "amber", text: "Amount differs" },
+    NOT_FOUND: { tag: "red", text: "Not in statement" },
+  } as const;
 
   return (
     <>
@@ -64,6 +71,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           <p>Sales logs each payment; Accounts verifies it against the bank statement (FR-009, FR-010, FR-036 – FR-038).</p>
         </div>
       </div>
+      {canVerify && !tab && <div style={{ marginBottom: 18 }}><StatementImport /></div>}
 
       <div className="grid g4">
         <section className="card"><h2 className="label">Total outstanding</h2><div className="stat"><b>{inr(summary.totalOutstanding)}</b><span>Confirmed contracts minus verified receipts</span></div></section>
@@ -133,7 +141,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           {queue.length === 0 ? <p className="empty">Nothing is waiting for verification.</p> : (
             <div className="table-wrap">
               <table>
-                <thead><tr><th>Project</th><th>Type</th><th>Amount</th><th>Mode</th><th>UTR</th><th>Waiting</th><th>{canVerify ? "Decision" : "Status"}</th></tr></thead>
+                <thead><tr><th>Project</th><th>Type</th><th>Amount</th><th>Mode</th><th>UTR</th><th>Bank match</th><th>Waiting</th><th>{canVerify ? "Decision" : "Status"}</th></tr></thead>
                 <tbody>
                   {queue.map((q) => (
                     <tr key={q.id}>
@@ -142,6 +150,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                       <td>{inr(q.amount)}</td>
                       <td>{q.mode}</td>
                       <td>{q.utr}</td>
+                      <td>
+                        <span className={`tag ${MATCH[q.bankMatch.result].tag}`}>{MATCH[q.bankMatch.result].text}</span>
+                        {q.bankMatch.result === "AMOUNT_MISMATCH" && <small style={{ display: "block", color: "var(--mute)" }}>Statement: {inr(q.bankMatch.statementAmount)}</small>}
+                      </td>
                       <td>{ago(q.loggedAt)}</td>
                       <td style={{ minWidth: 220 }}>
                         {canVerify && q.kind === "ADVANCE" ? (

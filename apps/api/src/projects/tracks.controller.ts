@@ -18,6 +18,7 @@ import { CurrentUser, RequireModule, type AuthUser } from "../common/auth-contex
 import { ConfigParamsService } from "../common/config-params.service";
 import { parse, RuleViolation } from "../common/validation";
 import { PrismaService } from "../prisma.service";
+import { EventBus } from "../automation/event-bus";
 import { ProjectsService } from "./projects.service";
 
 const GovBody = z.object({
@@ -67,6 +68,7 @@ export class TracksController {
     private readonly projects: ProjectsService,
     private readonly audit: AuditService,
     private readonly config: ConfigParamsService,
+    private readonly bus: EventBus,
   ) {}
 
   private async load(user: AuthUser, id: string, roles: Role[]): Promise<Project> {
@@ -116,6 +118,7 @@ export class TracksController {
     };
     await this.prisma.loanApplication.upsert({ where: { projectId: id }, create: { projectId: id, ...data }, update: data });
     await this.audit.record({ actorId: user.id, action: "loan.updated", entity: "Project", entityId: id, meta: { status: b.status, approvedAmount: b.approvedAmount ?? null } });
+    this.bus.emit("track.updated", { projectId: id, kind: "LOAN", status: b.status });
     return this.projects.get(user, id);
   }
 
@@ -153,6 +156,7 @@ export class TracksController {
       },
     });
     await this.audit.record({ actorId: user.id, action: "discom.updated", entity: "Project", entityId: id, meta: { status: b.status } });
+    this.bus.emit("track.updated", { projectId: id, kind: "DISCOM", status: b.status });
     if (b.status === "FINAL_APPROVED") return this.projects.completeStage(user, id, "FINAL_DISCOM_APPROVED", {});
     return this.projects.get(user, id);
   }
@@ -274,6 +278,7 @@ export class TracksController {
       data: { status: b.decision, verifiedById: user.id, verifiedAt: new Date(), rejectionReason: b.decision === "REJECTED" ? b.reason : null },
     });
     await this.audit.record({ actorId: user.id, action: `payment.${b.decision.toLowerCase()}`, entity: "Project", entityId: id, meta: { paymentId } });
+    this.bus.emit("payment.decided", { projectId: id, paymentId, approved: b.decision === "APPROVED", reason: b.reason });
     return this.projects.get(user, id);
   }
 }

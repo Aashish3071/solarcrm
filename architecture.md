@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 2b complete (automation). **Next:** Phase 3 adds notifications and bank-statement reconciliation.
+**Current phase:** Phase 3 complete (notifications and reconciliation). **Next:** Phase 3b builds the AI Advisor.
 
 ## System overview
 
@@ -21,6 +21,11 @@ NestJS API (:4000, modular monolith)
    │    ├─ AutomationService: routing, assignment suggestions, follow-ups, SLA timers, 60 s DB-backed tick
    │    ├─ Work: My Work tasks + SLA clocks; apply/override suggestions via normal workflow endpoints
    │    └─ Automation console: rules (versioned), dry run, availability, run log
+   ├─ Notifications (FR-044): NotificationService listens on EventBus
+   │    ├─ matrix (NotificationRule) → recipients (stage owner, sales owner, customer, roles) × channels
+   │    ├─ IN_APP rows = inbox; EMAIL/SMS/WHATSAPP rows = outbox (QUEUED → SENT/FAILED/SKIPPED, 3 attempts)
+   │    └─ delivery = POST to NOTIFY_WEBHOOK_URL (integration layer, Booklet §7/§8.3)
+   ├─ Reconciliation (Booklet §6.4): statement CSV → BankStatementLine; UTR match shown in the Accounts queue
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
    ├─ Config (admin): rules + masters editor, per-user overrides `<key>@<userId>`, audited
@@ -76,6 +81,9 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `Task` | 2b | Follow-ups, assignment suggestions, SLA escalations; owned by a person or a role queue; dedupe key |
 | `SlaTimer` | 2b | One live clock per project and stage: start, pause, warn, breach, resolve |
 | `User` (+) | 2b | awayUntil, maxOpen, territories, lastAssignedAt for routing |
+| `NotificationRule` | 3 | Event → recipients and channels (Booklet §9 defaults) |
+| `Notification` | 3 | In-app inbox and external outbox with status, attempts, dedupe key |
+| `BankStatementImport`, `BankStatementLine` | 3 | Imported credits (unique per date, amount, reference and narration) |
 | `IncentiveResult` | 2 | Incentive and partner commission with the rules snapshot used (FR-039–043) |
 
 ### How a stage is completed
@@ -95,8 +103,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 1B | Initiation team, Gov, Loan, DISCOM, design, planning, material, installation, documents (stages 10–21) | **Done** |
 | 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | **Done** |
 | 2b | Automation: routing, follow-ups, assignment, SLAs | **Done** |
-| 3 | Notifications, bank-statement reconciliation | Next |
-| 3b | AI Advisor | Planned |
+| 3 | Notifications, bank-statement reconciliation | **Done** |
+| 3b | AI Advisor | Next |
 | 4 | Connectors, storage hardening, reporting | Planned |
 | 5 | Hardening and go-live | Planned |
 
@@ -119,3 +127,5 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - Automation triggers fire when a stage opens. Suggest mode creates a task for the normal assigner. Auto mode assigns immediately; for stage-bound roles it completes the stage as SYSTEM, and all gates still apply.
 - SLA clocks run in wall-clock hours. Business-hours and holiday calendars, and pause-while-waiting, are not built yet: the fields exist (`pausedAt`, `pausedMs`) but nothing sets them.
 - The SLA check uses a database-polling interval rather than BullMQ, so state lives in Postgres and survives restarts. Redis stays reserved for scale-out.
+- Staff receive in-app and email. SMS and WhatsApp go only to customers, because staff phone numbers aren't collected. There is no customer in-app channel until the customer portal has logins.
+- A payment gateway connector (Razorpay and similar) is in Phase 4. Statement CSV import is the offline reconciliation path from Booklet §6.4.

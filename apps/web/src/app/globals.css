@@ -237,3 +237,14 @@ p.hint { margin: 0 0 12px; }
 .modal header h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .modal form { padding: 18px 22px 22px; }
 .modal .icon-btn { color: #475569; }
+
+/* ---------- notifications ---------- */
+.bell-badge { position: absolute; top: 0; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.bell-panel { position: absolute; bottom: 44px; left: -220px; width: 360px; max-height: 70vh; overflow-y: auto; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 30px rgba(15, 23, 42, .18); z-index: 80; }
+.bell-panel header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.bell-panel ul { list-style: none; margin: 0; padding: 0; }
+.bell-panel li button { width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 10px 14px; cursor: pointer; font: inherit; color: inherit; display: grid; gap: 2px; }
+.bell-panel li button:hover { background: var(--soft); }
+.bell-panel li button.unread span { font-weight: 600; }
+.bell-panel li button.unread { box-shadow: inset 3px 0 var(--blue); }
+.bell-panel small { color: var(--mute); font-size: 12.5px; }

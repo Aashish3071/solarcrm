@@ -75,6 +75,12 @@ async function main() {
   }
 
   console.log(`Seeded ${RULES.length} automation rules.`);
+
+  const { DEFAULT_MATRIX } = require("@solarcrm/shared");
+  for (const m of DEFAULT_MATRIX) {
+    await prisma.notificationRule.upsert({ where: { event: m.event }, update: {}, create: m });
+  }
+  console.log(`Seeded ${DEFAULT_MATRIX.length} notification rules.`);
   console.log(`Seeded ${USERS.length + 1} users (password: ${DEV_PASSWORD}), 2 partners, ${CONFIG.length} config rules.`);
 }
 

@@ -271,6 +271,7 @@ export class AutomationService implements OnModuleInit, OnModuleDestroy {
           dedupeKey: `${t.id}:breach:${t.startedAt.getTime()}`,
         });
         await this.log(null, t.projectId, "SLA_BREACHED", { stage: t.stage, escalatedTo: t.escalateTo });
+        this.bus.emit("sla.breached", { projectId: t.projectId, stage: t.stage as Stage });
       }
     }
   }

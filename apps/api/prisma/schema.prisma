@@ -465,3 +465,66 @@ model SlaTimer {
   @@unique([projectId, stage])
   @@index([resolvedAt])
 }
+
+/// FR-044 / Booklet §9: who is told about what, on which channels. Editable (open point 12).
+model NotificationRule {
+  event      String   @id
+  recipients String[]
+  channels   String[]
+  active     Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// Outbox and in-app inbox in one table. External channels are delivered by the
+/// notification worker with retries; IN_APP rows are "sent" on creation.
+model Notification {
+  id          String         @id @default(cuid())
+  event       String
+  channel     String
+  projectId   String?
+  userId      String?
+  /// Customer phone or email for external delivery to the customer.
+  address     String?
+  title       String
+  body        String
+  status      DeliveryStatus @default(QUEUED)
+  attempts    Int            @default(0)
+  error       String?
+  readAt      DateTime?
+  dedupeKey   String         @unique
+  createdAt   DateTime       @default(now())
+  sentAt      DateTime?
+
+  @@index([userId, channel, readAt])
+  @@index([status, createdAt])
+}
+
+/// Booklet §6.4: imported bank statements for UTR reconciliation.
+model BankStatementImport {
+  id           String              @id @default(cuid())
+  fileName     String
+  uploadedById String
+  lineCount    Int
+  createdAt    DateTime            @default(now())
+  lines        BankStatementLine[]
+}
+
+model BankStatementLine {
+  id        String              @id @default(cuid())
+  importId  String
+  import    BankStatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  txnDate   DateTime
+  amount    Decimal             @db.Decimal(12, 2)
+  reference String
+  narration String
+
+  @@unique([txnDate, amount, reference, narration])
+  @@index([reference])
+}
