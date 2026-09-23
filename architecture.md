@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 3 complete (notifications and reconciliation). **Next:** Phase 3b builds the AI Advisor.
+**Current phase:** Phase 3b complete (AI Advisor). **Next:** Phase 4 adds reporting, connectors and storage hardening.
 
 ## System overview
 
@@ -25,6 +25,10 @@ NestJS API (:4000, modular monolith)
    │    ├─ matrix (NotificationRule) → recipients (stage owner, sales owner, customer, roles) × channels
    │    ├─ IN_APP rows = inbox; EMAIL/SMS/WHATSAPP rows = outbox (QUEUED → SENT/FAILED/SKIPPED, 3 attempts)
    │    └─ delivery = POST to NOTIFY_WEBHOOK_URL (integration layer, Booklet §7/§8.3)
+   ├─ AI Advisor (FR-AI01–AI06): manual tool loop on the Anthropic SDK (claude-opus-5, fallbacks "default", auto prompt caching)
+   │    ├─ tools: search_projects, get_project, list_at_risk, my_work, incentive_preview (read-only, scope(user), no contact data)
+   │    ├─ propose_follow_up / propose_customer_message → AiProposedAction → user confirms → normal path (Task / Notification outbox)
+   │    └─ per-role enablement, hourly limit, AiUsageLog (tokens, cache reads, outcome)
    ├─ Reconciliation (Booklet §6.4): statement CSV → BankStatementLine; UTR match shown in the Accounts queue
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
@@ -84,6 +88,7 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `NotificationRule` | 3 | Event → recipients and channels (Booklet §9 defaults) |
 | `Notification` | 3 | In-app inbox and external outbox with status, attempts, dedupe key |
 | `BankStatementImport`, `BankStatementLine` | 3 | Imported credits (unique per date, amount, reference and narration) |
+| `AiConversation`, `AiProposedAction`, `AiUsageLog` | 3b | Advisor transcript per user, proposals awaiting confirmation, usage and cost accounting |
 | `IncentiveResult` | 2 | Incentive and partner commission with the rules snapshot used (FR-039–043) |
 
 ### How a stage is completed
@@ -104,8 +109,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 2 | Payment schedules/overdue, stage 22 collection, incentive engine, admin config UI | **Done** |
 | 2b | Automation: routing, follow-ups, assignment, SLAs | **Done** |
 | 3 | Notifications, bank-statement reconciliation | **Done** |
-| 3b | AI Advisor | Next |
-| 4 | Connectors, storage hardening, reporting | Planned |
+| 3b | AI Advisor | **Done** |
+| 4 | Connectors, storage hardening, reporting | Next |
 | 5 | Hardening and go-live | Planned |
 
 ## Decisions and open items
@@ -129,3 +134,5 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - The SLA check uses a database-polling interval rather than BullMQ, so state lives in Postgres and survives restarts. Redis stays reserved for scale-out.
 - Staff receive in-app and email. SMS and WhatsApp go only to customers, because staff phone numbers aren't collected. There is no customer in-app channel until the customer portal has logins.
 - A payment gateway connector (Razorpay and similar) is in Phase 4. Statement CSV import is the offline reconciliation path from Booklet §6.4.
+- The advisor can only read through tools that apply the same scope as the rest of the API. Finance fields appear only for Admin, Sales and Accounts; loan fields also for the Loan Officer and Office Executive. Proposals are re-checked against scope when confirmed.
+- Refusals: server-side fallbacks (`server-side-fallback-2026-07-01`, `fallbacks: "default"`) re-run a declined request on Anthropic's recommended model. If the whole chain still refuses, the exchange is dropped from the transcript and the user sees a short message.

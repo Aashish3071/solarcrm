@@ -248,3 +248,18 @@ p.hint { margin: 0 0 12px; }
 .bell-panel li button.unread span { font-weight: 600; }
 .bell-panel li button.unread { box-shadow: inset 3px 0 var(--blue); }
 .bell-panel small { color: var(--mute); font-size: 12.5px; }
+
+/* ---------- AI advisor ---------- */
+.drawer .body { display: flex; flex-direction: column; padding: 0; }
+.advisor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.advisor-log { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.advisor .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.advisor .chips .btn { white-space: normal; text-align: left; }
+.bubble { padding: 10px 12px; border-radius: 10px; margin: 10px 0; font-size: 14.5px; }
+.bubble.user { background: var(--side-bg); color: #fff; margin-left: 36px; }
+.bubble.assistant { background: var(--soft); border: 1px solid var(--line); margin-right: 12px; }
+.bubble.error { border-color: #f6caca; background: #fdecec; color: var(--red); }
+.proposal { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; display: grid; gap: 6px; }
+.proposal small { color: var(--mute); }
+.proposal p { margin: 0; }
+.advisor-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }

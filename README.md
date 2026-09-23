@@ -5,19 +5,17 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 3 (notifications and reconciliation) is complete.
+- **Phase:** Phase 3b (AI Advisor) is complete.
 - **Progress:**
-  - Phases 0–2b: the full 23-stage workflow, documents, schedules, incentives and automation.
-  - Phase 3, notifications (FR-044):
-    - In-app alerts when a stage opens for you, plus the Booklet §9 events: visit scheduled, payment verified or rejected, loan, DISCOM, material, installation complete, final DISCOM, and SLA delay.
-    - A bell with an inbox.
-    - An editable notification matrix.
-    - An outbox with retries. Messages are posted to an integration-layer webhook when `NOTIFY_WEBHOOK_URL` is set, and marked Skipped when no provider is configured.
-    - A delivery log.
-  - Phase 3, bank reconciliation (Booklet §6.4): bank-statement CSV import (duplicates ignored) and UTR auto-match shown in the Accounts queue as Matched, Amount differs or Not in statement. Accounts still approves every payment.
-  - The top-bar project search now works.
-  - Tests: 60 unit and 8 end-to-end.
-- **Next step:** Phase 3b builds the AI Advisor (summaries, lead finder, delay risk, message drafts and Q&A, limited to what the user's role can see, with confirm-to-act).
+  - Phases 0–3: the full 23-stage workflow, documents, schedules, incentives, automation, notifications and bank reconciliation.
+  - Phase 3b, added at the client's request (addendum FR-AI01–AI06):
+    - A chat panel behind the ✦ button. It summarises projects, finds leads (by text, stage, idle time or "waiting on me"), lists at-risk projects, shows your tasks, and previews incentives through the calculator.
+    - It drafts follow-ups and customer messages as proposals. Nothing happens until you confirm, and customer messages can be edited first.
+    - Model `claude-opus-5` (override with `ADVISOR_MODEL`) with server-side refusal fallbacks and prompt caching.
+    - Tools are read-only and scoped to the user's role and projects. Phone, email, UTR and street address never reach the model.
+    - Per-role enablement, an hourly limit and a usage log.
+  - Tests: 60 unit and 9 end-to-end. The advisor test runs the real SDK and tool loop against a local fake Messages API, so it costs nothing.
+- **Next step:** Phase 4 adds KPI reports and exports (Booklet §11), an accounting one-way sync interface, a payment-gateway webhook connector, and storage hardening.
 
 ## Layout
 
@@ -49,6 +47,8 @@ Seeded dev users (password `Solar@123`, dev only): `admin@`, `sales@`, `supervis
 |---|---|
 | `NOTIFY_WEBHOOK_URL` | External notifications (email, SMS, WhatsApp) are POSTed here in the Booklet §8.3 shape, e.g. to an n8n flow. Unset means they are marked Skipped. |
 | `NOTIFY_WEBHOOK_SECRET` | Sent as `x-solarcrm-secret` so the receiver can verify the caller. |
+| `ANTHROPIC_API_KEY` | Turns on the AI Advisor. Unset, the panel says it isn't configured. |
+| `ADVISOR_MODEL` | Advisor model (default `claude-opus-5`). |
 | `STORAGE_DIR` | Where uploaded documents are stored (local disk). |
 | `AUTOMATION_TICK_MS`, `NOTIFY_TICK_MS` | Worker intervals (defaults 60 s and 30 s). |
 

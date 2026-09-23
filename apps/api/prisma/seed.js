@@ -25,6 +25,8 @@ const CONFIG = [
   ["partner.fullCommissionPct", 5, "FR-042: Full Sales Partner commission (%) — example value from FRD"],
   ["incentive.fullIncentiveUpToPct", 3, "FR-040: discount up to which the full incentive formula applies (%)"],
   ["planning.defaultDurationDays", 12, "FR-026: days from start to expected end (placeholder, open point 7)"],
+  ["ai.enabledRoles", ["ADMIN", "SALES", "ACCOUNTS", "PROJECT_ENGINEER", "OFFICE_EXECUTIVE"], "FR-AI: roles that can use the AI Advisor (open point 19)"],
+  ["ai.requestsPerHour", 30, "FR-AI: advisor questions per user per hour"],
   // Open point 2: placeholder masters until the client supplies the real lists.
   ["masters.projectTypes", ["Residential", "Commercial"], "FR-002: project types (placeholder)"],
   ["masters.packages", ["Standard", "Premium"], "FR-002: packages (placeholder)"],

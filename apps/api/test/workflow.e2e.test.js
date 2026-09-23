@@ -35,6 +35,7 @@ after(async () => {
     await prisma.auditLog.deleteMany({ where: { entityId: { in: created } } });
     await prisma.automationRun.deleteMany({ where: { projectId: { in: created } } });
     await prisma.notification.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.aiProposedAction.deleteMany({ where: { projectId: { in: created } } });
     await prisma.bankStatementLine.deleteMany({ where: { reference: { startsWith: "RECON" } } });
     await prisma.project.deleteMany({ where: { id: { in: created } } });
     for (const pid of created) require("node:fs").rmSync(path.join(process.cwd(), "storage", pid), { recursive: true, force: true });
@@ -536,4 +537,72 @@ test("notifications and bank reconciliation (Phase 3)", async () => {
   // Matrix is editable by Admin only and validated
   assert.equal((await admin("PUT", "/notifications/rules/PAYMENT_VERIFIED", { recipients: ["NOBODY"], channels: ["IN_APP"], active: true })).status, 400);
   assert.equal((await sales("GET", "/notifications/rules")).status, 403);
+});
+
+test("AI Advisor: scoped tools, no PII to the model, confirm-to-act (Phase 3b)", async () => {
+  const http = require("node:http");
+  const seen = [];
+  let step = 0;
+  // Fake Messages API: search → propose follow-up → final answer.
+  const fake = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const json = JSON.parse(body);
+      seen.push({ headers: req.headers, body: json });
+      const toolUse = (name, input) => ({ id: `toolu_${step}`, type: "tool_use", name, input });
+      const content =
+        step === 0 ? [toolUse("search_projects", { query: "E2E Advisor" })]
+        : step === 1 ? [toolUse("propose_follow_up", { project_code: globalThis.__advisorCode, title: "Call about site visit", due_in_hours: 24 })]
+        : [{ type: "text", text: "Found 1 lead. I've proposed a follow-up for you to confirm." }];
+      const stop = step < 2 ? "tool_use" : "end_turn";
+      step++;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ id: `msg_${step}`, type: "message", role: "assistant", model: json.model, content, stop_reason: stop, stop_sequence: null, usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }));
+    });
+  });
+  await new Promise((r) => fake.listen(0, "127.0.0.1", r));
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.ADVISOR_BASE_URL = `http://127.0.0.1:${fake.address().port}`;
+
+  try {
+    const sales = await login("sales@solarcrm.local");
+    const supervisor = await login("supervisor@solarcrm.local");
+    let r = await sales("POST", "/projects", { customerName: "E2E Advisor", phone: "9800000099", email: "adv@example.com", address: "Wakad, Pune 411057", leadSource: "DIRECT" });
+    created.push(r.body.id);
+    globalThis.__advisorCode = r.body.code;
+
+    // Not enabled for Site Supervisor by default (open point 19)
+    assert.equal((await supervisor("POST", "/advisor/ask", { question: "hi" })).status, 403);
+
+    r = await sales("POST", "/advisor/ask", { question: "Any new leads I should call?" });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.match(r.body.reply, /proposed a follow-up/);
+    assert.deepEqual(r.body.toolsUsed, ["search_projects", "propose_follow_up"]);
+    assert.equal(r.body.actions.length, 1);
+
+    // What reached the model: default model, fallbacks on, cached system prompt, and no contact details
+    const first = seen[0];
+    assert.equal(first.body.model, "claude-opus-5");
+    assert.equal(first.body.fallbacks, "default");
+    assert.match(first.headers["anthropic-beta"], /server-side-fallback-2026-07-01/);
+    assert.deepEqual(first.body.cache_control, { type: "ephemeral" });
+    const toolResult = JSON.stringify(seen[1].body.messages.at(-1));
+    assert.ok(toolResult.includes("E2E Advisor") && toolResult.includes("411057"));
+    assert.ok(!toolResult.includes("9800000099") && !toolResult.includes("adv@example.com") && !toolResult.includes("Wakad"));
+
+    // Nothing was created until confirmed
+    const actionId = r.body.actions[0].id;
+    let work = (await sales("GET", "/work")).body;
+    assert.ok(!work.tasks.some((t) => t.title === "Call about site visit"));
+    assert.equal((await supervisor("POST", `/advisor/actions/${actionId}/confirm`)).status, 404); // someone else's proposal
+    assert.equal((await sales("POST", `/advisor/actions/${actionId}/confirm`)).status, 200);
+    work = (await sales("GET", "/work")).body;
+    assert.ok(work.tasks.some((t) => t.title === "Call about site visit"));
+    assert.equal((await sales("POST", `/advisor/actions/${actionId}/confirm`)).status, 422); // only once
+  } finally {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ADVISOR_BASE_URL;
+    fake.close();
+  }
 });

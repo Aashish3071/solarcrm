@@ -1,6 +1,7 @@
 "use client";
 
 import { LogOut, Menu, Sparkles, Sun, X } from "lucide-react";
+import { AdvisorPanel } from "./AdvisorPanel";
 import { Bell } from "./Bell";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -132,11 +133,7 @@ export function Shell({ user, children }: { user: ShellUser; children: React.Rea
             </button>
           </header>
           <div className="body">
-            <p>
-              The AI Advisor will summarise projects, find leads and flag delays using only the data your role can see.
-              It never changes anything without your confirmation.
-            </p>
-            <p className="notice">Not connected yet. It is built in Phase 3b (Addendum FR-AI01 – AI06).</p>
+            <AdvisorPanel />
           </div>
         </section>
       )}

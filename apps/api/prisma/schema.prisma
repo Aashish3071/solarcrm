@@ -528,3 +528,51 @@ model BankStatementLine {
   @@unique([txnDate, amount, reference, narration])
   @@index([reference])
 }
+
+/// Addendum FR-AI01 – AI06: one conversation per user session; messages are the API transcript.
+model AiConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+enum AiActionStatus {
+  PROPOSED
+  CONFIRMED
+  REJECTED
+}
+
+/// Anything the advisor wants to change is only proposed; the user confirms it (FR-AI05/06).
+model AiProposedAction {
+  id             String         @id @default(cuid())
+  conversationId String
+  userId         String
+  projectId      String
+  kind           String
+  payload        Json
+  status         AiActionStatus @default(PROPOSED)
+  createdAt      DateTime       @default(now())
+  decidedAt      DateTime?
+
+  @@index([userId, status])
+}
+
+/// Cost and rate-limit accounting per request.
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  userId           String
+  model            String
+  inputTokens      Int
+  outputTokens     Int
+  cacheReadTokens  Int
+  cacheWriteTokens Int
+  toolCalls        Int
+  outcome          String
+  at               DateTime @default(now())
+
+  @@index([userId, at])
+}
