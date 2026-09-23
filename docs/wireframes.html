@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Solar CRM Wireframes</title>
+<style>
+:root{--bg:#f8f9fb;--card:#fff;--ink:#111827;--mute:#5f6b7a;--line:#e5e8ed;--blue:#1d4ed8;--blue-d:#1a43b8;--blue-s:#e8effd;--red:#c81e1e;--red-s:#fdecec;--grn:#15803d;--grn-s:#e2f6e9;--amb:#a16207;--amb-s:#fdf3c8;--nav:#f1f3f6;--focus:#1d4ed8}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 "Inter",-apple-system,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.skip{position:absolute;left:-999px}.skip:focus{left:8px;top:8px;background:#fff;padding:6px 10px;z-index:99}
+/* top bar */
+.top{height:64px;flex:0 0 64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+.top .l,.top .r{display:flex;align-items:center;gap:14px}
+.ib{width:40px;height:40px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;color:#374151;cursor:pointer;padding:0}
+.ib:hover{background:var(--nav)}.ib svg{width:20px;height:20px;fill:currentColor}
+.logo{width:34px;height:34px;border-radius:50%;background:#f5c518;display:grid;place-items:center}
+.logo svg{width:20px;height:20px;fill:#1f2937}
+.bname{font-weight:700;font-size:16px}
+.badge{position:relative}.badge i{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid #fff}
+.frame{flex:1;display:flex;min-height:0}
+aside{width:260px;flex:0 0 260px;background:#fff;border-right:1px solid var(--line);overflow:auto;padding:14px 12px;display:flex;flex-direction:column}
+aside.hide{display:none}
+aside a{display:block;padding:11px 16px;margin:2px 0;border-radius:8px;color:#1f2937;text-decoration:none;font-size:14.5px}
+aside a:hover{background:var(--nav)}aside a[aria-current=page]{background:var(--nav);font-weight:600}
+aside hr{border:0;border-top:1px solid var(--line);margin:10px 4px}
+aside .lg{margin-top:auto}
+main{flex:1;overflow:auto;padding:28px 32px 100px;min-width:0}
+.in{max-width:1240px;margin:auto}
+h1{font-size:26px;line-height:1.2;margin:0;font-weight:700}.lead{color:var(--mute);margin:4px 0 0}
+.head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:22px}
+.acts{display:flex;gap:10px;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.card h3{margin:0 0 14px;font-size:17px;font-weight:600}
+.card h4{margin:0 0 10px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:500}
+.grid{display:grid;gap:20px}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.kpi{padding:18px 20px}.kpi h4{margin:0}.kpi b{display:block;font-size:30px;font-weight:600;margin-top:8px}.kpi .g{color:var(--grn)}.kpi .r{color:var(--red)}.kpi .b{color:var(--blue)}
+.kpi.tri{display:flex;flex-wrap:wrap;gap:22px 30px}.kpi.tri>div b{font-size:26px;margin-top:2px}.kpi.tri>div span{color:var(--mute);font-size:13px}.kpi.tri h4{flex:0 0 100%}
+label{display:block;font-size:13px;color:#374151;margin:14px 0 5px;font-weight:500}
+input,select,textarea{width:100%;padding:9px 12px;border:1px solid #cfd5dd;border-radius:8px;background:#fff;color:var(--ink);font:inherit;min-height:42px}
+input:disabled,select:disabled{background:#f1f3f6;color:#8b94a1}
+button,.btn{font:inherit;font-weight:500;min-height:42px;padding:8px 18px;border-radius:8px;border:1px solid #cfd5dd;background:#fff;color:var(--ink);cursor:pointer}
+button:hover{background:var(--nav)}button.pri{background:var(--blue);color:#fff;border-color:var(--blue)}button.pri:hover{background:var(--blue-d)}button:disabled{opacity:.5;cursor:not-allowed}
+button.sm{min-height:34px;padding:4px 12px;font-size:13px}
+.lnk{color:var(--blue);text-decoration:none;font-weight:500;background:none;border:0;padding:0;min-height:0;cursor:pointer}.lnk:hover{text-decoration:underline;background:none}
+table{width:100%;border-collapse:collapse}th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--mute);text-align:left;font-weight:500;padding:12px 14px;border-bottom:1px solid var(--line);background:#fafbfc}
+td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:middle}tr:last-child td{border-bottom:0}
+.tbl{overflow:auto;border:1px solid var(--line);border-radius:10px}
+.pill{display:inline-block;padding:2px 12px;border-radius:999px;font-size:12.5px;font-weight:500;background:#eef0f3;color:#374151}
+.pill.b{background:var(--blue-s);color:#1e40af}.pill.g{background:var(--grn-s);color:var(--grn)}.pill.a{background:var(--amb-s);color:var(--amb)}.pill.r{background:var(--red-s);color:var(--red)}
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+.tabs a{padding:10px 2px;color:var(--mute);text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+.tabs a.on{color:var(--blue);border-color:var(--blue)}
+.note{padding:11px 14px;border-radius:8px;background:var(--blue-s);color:#1e3a8a;font-size:13.5px;margin-top:14px}.note.err{background:var(--red-s);color:var(--red)}.note.ok{background:var(--grn-s);color:var(--grn)}
+.bar{height:8px;border-radius:4px;background:#e9ecf0;overflow:hidden}.bar i{display:block;height:100%;background:var(--blue)}.bar.gr i{background:#22c55e}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin:12px 0 4px}.row span:last-child{color:var(--mute)}
+.list{list-style:none;margin:0;padding:0}
+.fu{background:var(--red-s);border-radius:8px;padding:11px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.fu b{display:block}.fu small{color:var(--red)}
+.kan{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(250px,1fr);gap:16px;overflow:auto;padding-bottom:8px}
+.col{background:#eef0f3;border-radius:12px;padding:14px;min-height:220px}
+.col h4{display:flex;justify-content:space-between;align-items:center;color:#1f2937;font-weight:600;margin-bottom:12px}.col h4 span{background:#dde1e7;border-radius:999px;padding:0 9px;font-size:12px}
+.lc{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line)}.lc b{display:block}.lc small{color:var(--mute)}.lc div{display:flex;justify-content:space-between;margin-top:8px;font-size:13px}
+.pc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}.pc header{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px}.pc header b{font-size:16px}
+.pc p{margin:2px 0;color:#374151;font-size:14px}
+.stg{display:flex;gap:6px;flex-wrap:wrap}.stg span{font-size:12.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--mute);background:#fff}
+.stg .d{background:#111827;color:#fff;border-color:#111827}.stg .c{background:var(--amb-s);color:var(--amb);border-color:#f1d669;font-weight:600}
+.settings{display:grid;grid-template-columns:230px 1fr;gap:20px}@media(max-width:800px){.settings{grid-template-columns:1fr}}
+.sm-menu{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;align-self:start}
+.sm-menu a{display:block;padding:11px 14px;border-radius:8px;color:#1f2937;text-decoration:none}.sm-menu a.on{background:var(--blue-s);color:var(--blue);font-weight:600;box-shadow:inset 3px 0 var(--blue)}
+.phone{max-width:380px;border:1px solid var(--line);border-radius:18px;padding:18px;background:#fff;margin:auto}
+.chk{display:flex;gap:10px;align-items:center}.chk input{width:18px;height:18px;min-height:0}
+.fab{position:fixed;right:24px;bottom:24px;width:54px;height:54px;border-radius:50%;background:var(--blue);color:#fff;border:0;display:grid;place-items:center;padding:0;box-shadow:0 4px 14px rgba(29,78,216,.35);z-index:20}
+.fab:hover{background:var(--blue-d)}.fab svg{width:24px;height:24px;fill:#fff}
+.ai{position:fixed;right:0;top:0;height:100vh;width:410px;max-width:100vw;background:#fff;border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(0,0,0,.1);z-index:30;display:none;flex-direction:column}
+.ai.open{display:flex}.ai header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.ai header b{font-size:16px}.ai .body{flex:1;overflow:auto;padding:18px 20px}.ai .foot{padding:14px;border-top:1px solid var(--line);display:flex;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.chips button{border-radius:999px;font-size:13px;min-height:36px;padding:4px 14px;background:var(--blue-s);color:#1e40af;border-color:#c9d8fb}
+.bub{padding:11px 14px;border-radius:12px;margin:10px 0;max-width:94%}.bub.u{background:var(--blue);color:#fff;margin-left:auto}.bub.a{background:#f1f3f6}
+.small{font-size:12.5px;color:var(--mute)}
+@media(max-width:820px){aside{position:fixed;z-index:15;top:64px;bottom:0;box-shadow:4px 0 20px rgba(0,0,0,.1)}main{padding:20px 16px 100px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="l">
+    <button class="ib" id="menu" aria-label="Toggle navigation" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v2H4zM4 11h10v2H4zM4 16h16v2H4z"/></svg></button>
+    <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M11 1h2v4h-2zM11 19h2v4h-2zM1 11h4v2H1zM19 11h4v2h-4zM4.2 5.6l1.4-1.4 2.8 2.8-1.4 1.4zM15.6 17l1.4-1.4 2.8 2.8-1.4 1.4zM5.6 19.8l-1.4-1.4L7 15.6l1.4 1.4zM17 8.4 15.6 7l2.8-2.8L19.8 5.6z"/></svg></div>
+    <span class="bname">Solar CRM</span>
+  </div>
+  <div class="r">
+    <button class="ib badge" aria-label="Notifications, 3 unread"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.4-2h-4.8A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5-6.7V3a2 2 0 0 0-4 0v1.3A7 7 0 0 0 5 11v5l-2 2v1h18v-1z"/></svg><i></i></button>
+    <a class="ib" href="#set" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></a>
+  </div>
+</header>
+<div class="frame">
+<aside id="side" aria-label="Primary"><nav id="nav" aria-label="Main navigation"></nav></aside>
+<main id="main" tabindex="-1"><div class="in" id="view"></div></main>
+</div>
+
+<button class="fab" id="fab" aria-label="Open AI Advisor" aria-controls="ai" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg></button>
+<section class="ai" id="ai" role="dialog" aria-label="AI Advisor">
+  <header><div><b>AI Advisor</b><div class="small">Answers only from data you can access</div></div><button class="ib" id="x" aria-label="Close AI Advisor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg></button></header>
+  <div class="body" id="chat">
+    <div class="bub a">Hi Aarav. I can summarise a project, find leads, spot delays or draft a message. I never change anything without your confirmation.</div>
+    <div class="chips" id="chips">
+      <button data-q="Summarise SLR-2026-00123">Summarise a project</button>
+      <button data-q="Find leads not contacted in 3 days">Find stale leads</button>
+      <button data-q="Which projects are at risk of delay?">At-risk projects</button>
+      <button data-q="Draft a follow-up to Ramesh Kumar">Draft a message</button>
+      <button data-q="What is waiting on Accounts?">Waiting on Accounts</button>
+    </div>
+  </div>
+  <form class="foot" id="af"><input id="aq" aria-label="Ask the AI Advisor" placeholder="Ask about your leads or projects"><button class="pri">Send</button></form>
+</section>
+
+<script>
+const NAV=[["dash","Dashboard"],["work","My Work"],["leads","Leads"],["visit","Site Visits"],["final","Finalize & Advance"],["projects","Projects"],["init","Project Initiation"],["plan","Planning & Material"],["inst","Installation & Completion"],["gov","Government Registration"],["loan","Loan Processing"],["discom","DISCOM"],["pay","Payments"],["inc","Incentives"],["portal","Customer Portal"],["auto","Automation"],["set","Settings"]];
+const T={};
+const step=["Lead","Requirement","Supervisor assigned","Visit scheduled","Visit done","Sales finalization","Customer confirmed","Advance logged","Payment verified","Project initiated","Gov registration","Loan","DISCOM","Site revisit & design","Planning","Ready to dispatch","Dispatched","Received at site","Installation","Completion","Final DISCOM","Payment collection","Incentive"];
+const stg=c=>`<div class="stg" role="list" aria-label="Stage ${c} of 23">${step.map((s,i)=>`<span role="listitem" class="${i<c-1?'d':i==c-1?'c':''}">${i+1}. ${s}</span>`).join('')}</div>`;
+const head=(t,s,a='')=>`<div class="head"><div><h1>${t}</h1><p class="lead">${s}</p></div><div class="acts">${a}</div></div>`;
+const tabs=(a,on=0)=>`<div class="tabs">${a.map((x,i)=>`<a href="javascript:void 0" class="${i==on?'on':''}">${x}</a>`).join('')}</div>`;
+const k=(t,v,c='')=>`<div class="card kpi"><h4>${t}</h4><b class="${c}">${v}</b></div>`;
+
+T.dash=()=>head("Dashboard","Welcome back, Aarav. Here's your overview.",'<button class="pri" onclick="location.hash=\'leads\'">Leads</button><button onclick="location.hash=\'visit\'">Site Visits</button>')+`
+<div class="grid g4">${k("My leads","6")}${k("Active projects","4")}${k("Collections","₹1,66,320")}${k("Open SLA breaches","3","r")}</div>
+<div class="grid g3">
+ <div class="card kpi tri"><h4>Today</h4><div><b>2</b><span>New leads</span></div><div><b>9</b><span>Follow-ups due</span></div><div><b>5</b><span>Payments to verify</span></div></div>
+ <div class="card kpi tri"><h4>This week</h4><div><b>11</b><span>New leads</span></div><div><b>3</b><span>Projects started</span></div><div><b>22%</b><span>Conversion</span></div></div>
+ <div class="card kpi tri"><h4>This month</h4><div><b>7</b><span>Installed</span></div><div><b>₹48L</b><span>Booked</span></div><div><b>₹2.1L</b><span>Incentive</span></div></div></div>
+<div class="grid" style="grid-template-columns:2fr 1fr">
+ <div class="card"><h3>Project pipeline</h3>${[["Lead & requirement",6],["Site visit",3],["Sales finalization",2],["Payment verification",5],["Gov · DISCOM · Loan",4],["Installation",2]].map(([n,v])=>`<div class="row"><span>${n}</span><span>${v}</span></div><div class="bar"><i style="width:${v*14}%"></i></div>`).join('')}</div>
+ <div class="card"><h3>Overdue follow-ups</h3>
+  <div class="fu"><div><b>Suresh Gupta</b><small>Due: 07 Sep</small></div><button class="lnk">View</button></div>
+  <div class="fu"><div><b>Akash Patil</b><small>Due: 07 Sep</small></div><button class="lnk">View</button></div>
+  <div class="fu"><div><b>Maya Sexton</b><small>Due: 06 Sep</small></div><button class="lnk">View</button></div></div></div>`;
+
+T.work=()=>head("My Work","Tasks, follow-ups and SLA clocks assigned to you.")+`<div class="grid g4">${k("Overdue","2","r")}${k("Due today","9")}${k("Completed today","5","g")}${k("Next 7 days","18")}</div>
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Due</th><th>Task</th><th>Source</th><th>SLA</th><th>Actions</th></tr></thead><tbody>
+<tr><td>11:00</td><td><button class="lnk">Call Ramesh Kumar (new lead)</button></td><td><span class="pill b">Auto follow-up</span></td><td><span class="pill a">1h 20m left</span></td><td><button class="sm">Done</button> <button class="sm">Snooze</button></td></tr>
+<tr><td>—</td><td><button class="lnk">Verify advance SLR-…123</button></td><td><span class="pill b">Auto-assigned</span></td><td><span class="pill r">Breached 2h</span></td><td><button class="sm pri">Open</button></td></tr>
+<tr><td>Today</td><td><button class="lnk">Schedule visit SLR-…131</button></td><td><span class="pill b">Auto-assigned</span></td><td><span class="pill g">5h left</span></td><td><button class="sm pri">Accept</button> <button class="sm">Reassign</button></td></tr></tbody></table></div>`;
+
+const lc=(n,kw,loc,o)=>`<div class="lc"><b>${n}</b><small>${kw} kW · ${o}</small><div><span>${loc}</span><button class="lnk">View Details</button></div></div>`;
+T.leads=()=>head("Leads","Every enquiry from Direct and Sales Partner sources.",'<input aria-label="Search leads" placeholder="Search leads…" style="width:240px"><button class="pri" onclick="document.getElementById(\'nl\').scrollIntoView({behavior:\'smooth\'})">New Lead</button>')+
+tabs(["Kanban View","List View"])+`<div class="kan">
+<div class="col"><h4>1. Lead created <span>1</span></h4>${lc("Priya Nair",3,"Pune","Direct")}</div>
+<div class="col"><h4>2. Requirement captured <span>2</span></h4>${lc("Ramesh Kumar",5,"Delhi","Direct")}${lc("Meera Shah",10,"Mumbai","Sun&Co")}</div>
+<div class="col"><h4>3. Supervisor assigned <span>1</span></h4>${lc("Amit Verma",6,"Nagpur","Direct")}</div>
+<div class="col"><h4>4. Visit scheduled <span>1</span></h4>${lc("Suresh Gupta",3,"Delhi","BrightLeads")}</div>
+<div class="col"><h4>5. Visit completed <span>1</span></h4>${lc("Akash Patil",3,"Mumbai","Direct")}</div></div>
+<div class="card" id="nl" style="margin-top:28px"><h3>New lead and requirement</h3><div class="grid g2"><div>
+<label for="src">Lead source *</label><select id="src"><option value="d">Direct Source</option><option value="p">Sales Partner</option></select>
+<div id="pt" hidden><label for="ptn">Partner *</label><select id="ptn"><option>Sun&amp;Co (Full Sales Partner)</option><option>BrightLeads (Lead only)</option></select></div>
+<label for="cn">Customer name *</label><input id="cn"><label for="ph">Phone *</label><input id="ph" inputmode="tel"><label for="ad">Installation address *</label><input id="ad"></div><div>
+<label for="kw">Required capacity (kW) *</label><input id="kw" type="number" value="5"><label for="ln">Loan needed</label><select id="ln"><option>No</option><option>Yes</option></select>
+<label for="pty">Project type *</label><select id="pty"><option>Residential</option><option>Commercial</option></select><label for="pk">Package *</label><select id="pk"><option value="55000">Standard</option><option value="60000">Premium</option></select>
+<div class="note" id="pp" aria-live="polite"></div></div></div><p style="margin-top:18px"><button>Save draft</button> <button class="pri">Save and auto-assign</button></p></div>`;
+
+T.visit=()=>head("Site Visits","Assign, schedule and record site assessments.")+`<div class="card" style="padding:14px"><div class="grid g3"><input aria-label="Search by customer" placeholder="Search by customer name…"><select aria-label="Status"><option>All statuses</option></select><select aria-label="Supervisor"><option>All supervisors</option></select></div></div>
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Customer</th><th>Visit date / time</th><th>Supervisor</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">Sneha Kulkarni</button></td><td>2026-09-22 10:00</td><td>Amit</td><td><span class="pill g">Completed</span></td><td><button class="sm pri">View assessment</button></td></tr>
+<tr><td><button class="lnk">Ramesh Kumar</button></td><td>2026-09-24 16:54</td><td>Amit</td><td><span class="pill b">Scheduled</span></td><td><button class="sm pri">Start visit</button></td></tr>
+<tr><td><button class="lnk">Amit Verma</button></td><td>Not scheduled</td><td>Unassigned</td><td><span class="pill a">Needs supervisor</span></td><td><button class="sm">Assign (suggested: Amit)</button></td></tr></tbody></table></div>
+<div class="grid g2"><div class="card"><h3>Schedule visit</h3><label for="vd">Visit time *</label><select id="vd"><option value="4">Within 24 hours</option><option value="30">More than 24 hours from assignment</option></select>
+<div id="rs" hidden><label for="rr">Reason for late visit * (required over 24 hours)</label><input id="rr"></div><p><button class="pri">Confirm schedule</button></p></div>
+<div class="card"><h3>Site assessment</h3><label>Actual capacity (kW)</label><input value="4.5"><label>Feasible</label><select><option>Yes</option><option>No</option></select><label>Deviations from requirement</label><textarea rows="2"></textarea><p><button>Add photos</button> <button class="pri">Submit</button></p></div></div>`;
+
+T.final=()=>head("Finalize & Advance","Lock package, cost and terms, get confirmation, then log the advance.")+`
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Ref</th><th>Customer</th><th>Final cost</th><th>Discount</th><th>Confirmation</th><th>Status</th></tr></thead><tbody>
+<tr><td>SLR-2026-00123</td><td><button class="lnk">Ramesh Kumar</button></td><td>₹2,70,000</td><td>3.5%</td><td><span class="pill a">Pending</span></td><td><span class="pill b">Draft</span></td></tr></tbody></table></div>
+<div class="card"><h3>Sales finalization</h3><div class="note">Site assessment: 4.5 kW (0.5 less than quoted), feasible.</div><div class="grid g2"><div>
+<label for="fc">Final cost (₹)</label><input id="fc" value="270000"><label for="dc">Discount %</label><input id="dc" value="3.5" inputmode="decimal"><div id="dm" class="note" aria-live="polite"></div></div><div>
+<label>Payment terms</label><input value="Advance 30% / Bank 60% / Final 10%"><p><button id="cf">Record customer confirmation</button> <span class="pill a" id="cs">Not confirmed</span></p></div></div></div>
+<div class="card"><h3>Advance payment</h3><div class="grid g3"><div><label for="a1">Amount *</label><input id="a1" disabled></div><div><label for="a2">Mode *</label><select id="a2" disabled><option>NEFT</option><option>UPI</option></select></div><div><label for="a3">UTR number *</label><input id="a3" disabled></div></div><p><button class="pri" id="a4" disabled>Log payment</button> <span class="small" id="lk">Locked until customer confirmation is recorded.</span></p></div>`;
+
+const pc=(n,sz,loc,st,p,c)=>`<div class="pc"><header><b>${n}</b><span class="pill ${c}">${st}</span></header><p><b>Size:</b> ${sz} kW</p><p><b>Location:</b> ${loc}</p><div class="row"><span>Stage progress</span><span>${p}/23</span></div><div class="bar ${p==23?'gr':''}"><i style="width:${p/23*100}%"></i></div><p style="margin-top:14px"><button class="sm" style="width:100%;background:var(--blue-s);color:var(--blue);border-color:#c9d8fb" onclick="location.hash='project'">Open project</button></p></div>`;
+T.projects=()=>head("Projects","Every installation from initiation to completion.")+`<div class="card" style="padding:14px"><div class="grid g4"><select aria-label="Status"><option>All statuses</option></select><select aria-label="Project engineer"><option>All engineers</option></select><select aria-label="Location"><option>All locations</option></select><select aria-label="Sort"><option>Newest first</option></select></div></div>
+<div class="grid g3">${pc("Ramesh Kumar · 5 kW · 2026",5,"Delhi","Payment check",9,"a")}${pc("Suresh Gupta · 3 kW · 2026",3,"Delhi","In progress",13,"b")}${pc("Robert Pierce · 3 kW · 2026",3,"Maharashtra","In progress",19,"b")}${pc("Sneha Kulkarni · 28 kW · 2026",28,"Pune","Completed",23,"g")}</div>`;
+T.project=()=>head("SLR-2026-00123","Ramesh Kumar · 5 kW Residential · Partner: Sun&Co",'<span class="pill a">Stage 9 of 23</span> <button onclick="location.hash=\'projects\'">Back to projects</button>')+`<div class="card"><h3>Progress</h3>${stg(9)}</div>
+${tabs(["Overview","Site","Payments","Loan","Gov / DISCOM","Planning","Documents","Incentive"])}
+<div class="grid g2"><div class="card"><h3>Tracks</h3><div class="tbl"><table><tbody><tr><td>Payment</td><td><span class="pill a">Awaiting Accounts</span></td></tr><tr><td>Loan</td><td><span class="pill">Not started</span></td></tr><tr><td>DISCOM</td><td><span class="pill">Not started</span></td></tr><tr><td>Material</td><td><span class="pill">Not started</span></td></tr><tr><td>Installation</td><td><span class="pill">Not started</span></td></tr></tbody></table></div></div>
+<div class="card"><h3>Next action</h3><div class="note err">Waiting on Accounts: advance ₹45,000, UTR N123456789012. SLA breached by 2 hours.</div><h4 style="margin-top:18px">Team</h4><p style="margin:0">Sales: Priya · Supervisor: Amit · Office Executive: not assigned</p></div></div>
+<div class="card"><h3>Timeline</h3><div class="tbl"><table><tbody><tr><td>Payment logged by Priya</td><td class="small">20 Sep, 14:02</td></tr><tr><td>Customer confirmed terms</td><td class="small">20 Sep, 11:30</td></tr><tr><td>Assessment submitted by Amit</td><td class="small">19 Sep, 16:10</td></tr></tbody></table></div></div>`;
+
+T.plan=()=>head("Planning & Material","Start date, auto-calculated end date, dispatch and receipt.")+`<div class="grid g2"><div class="card"><h3>Schedule</h3><label for="sd">Planned start date</label><input type="date" id="sd"><label>Expected end date (auto)</label><input id="ee" disabled placeholder="Calculated from start date"><div class="note">Planned vs actual dates and delay reasons feed reports.</div></div>
+<div class="card"><h3>Material</h3><label for="ms">Status</label><select id="ms"><option>Ready to dispatch</option><option>Ready to dispatch (delayed)</option></select><div id="dr" hidden><label for="dri">Delay remark * (required)</label><input id="dri"></div><h4 style="margin-top:20px">Flow</h4><div class="stg"><span class="d">Ready</span><span>Dispatched (automatic)</span><span>Received at site</span></div></div></div>`;
+
+T.gov=()=>head("Government Registration","Office Executive registers each project on the government portal (stage 11).")+`
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Registration no.</th><th>Registration date</th><th>Mode</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">Ramesh Kumar · 5 kW</button></td><td>Not registered</td><td>—</td><td><span class="pill">Manual</span></td><td><span class="pill a">Pending</span></td><td><button class="sm pri">Register</button></td></tr>
+<tr><td><button class="lnk">Suresh Gupta · 3 kW</button></td><td>GR-2026-44120</td><td>2026-09-12</td><td><span class="pill">Manual</span></td><td><span class="pill g">Registered</span></td><td><button class="sm">View</button></td></tr></tbody></table></div>
+<div class="card"><h3>Record registration</h3><div class="grid g3"><div><label>Registration no. *</label><input></div><div><label>Registration date *</label><input type="date"></div><div><label>Status</label><select><option>Submitted</option><option>Registered</option></select></div></div><p><button>Upload document</button></p><p><button class="pri">Save</button></p></div>`;
+
+T.loan=()=>head("Loan Processing","Loan Officer submits to the bank and keeps client and Sales informed (stage 12).")+`
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Bank / NBFC</th><th>Requested</th><th>Approved</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">Suresh Gupta · 3 kW</button></td><td>Bank A</td><td>₹2,00,000</td><td>₹1,80,000</td><td><span class="pill a">Awaiting client re-confirmation</span></td><td><button class="sm pri">Update</button></td></tr>
+<tr><td><button class="lnk">Meera Shah · 10 kW</button></td><td>Bank B</td><td>₹6,00,000</td><td>—</td><td><span class="pill b">Submitted</span></td><td><button class="sm pri">Update</button></td></tr></tbody></table></div>
+<div class="grid g2"><div class="card"><h3>Loan application</h3><label>Bank / NBFC</label><select><option>Bank A</option><option>Bank B</option></select><label>Requested amount (₹)</label><input value="200000"><label>Approved amount (₹)</label><input value="180000">
+<div class="note">Approved amount differs from requested. Sales must re-confirm with the client before the split updates.</div><p><button>Upload document</button> <button class="pri">Save</button></p></div>
+<div class="card"><h3>Payment split</h3><div class="tbl"><table><tbody><tr><td>Customer contribution</td><td>₹90,000</td></tr><tr><td>Bank contribution</td><td>₹1,80,000</td></tr><tr><td>Instalment 1</td><td><span class="pill g">Verified</span></td></tr><tr><td>Instalment 2</td><td><span class="pill">Not received</span></td></tr></tbody></table></div><p class="small">Instalments are logged by Sales and verified by Accounts under Payments.</p></div></div>`;
+
+T.discom=()=>head("DISCOM","DISCOM Officer submits the application with meter details and tracks approval (stages 13 and 21).")+`
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Application no.</th><th>Meter no.</th><th>Mode</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">Suresh Gupta · 3 kW</button></td><td>DC-99871</td><td>—</td><td><span class="pill">Manual</span></td><td><span class="pill b">Under review</span></td><td><button class="sm pri">Update</button></td></tr>
+<tr><td><button class="lnk">Robert Pierce · 3 kW</button></td><td>DC-99702</td><td>MTR-556231</td><td><span class="pill">Manual</span></td><td><span class="pill r">Returned for correction</span></td><td><button class="sm pri">Update</button></td></tr></tbody></table></div>
+<div class="card"><h3>Update DISCOM status</h3><div class="grid g3"><div><label>Application no.</label><input value="DC-99871"></div><div><label>Meter no.</label><input></div><div><label>Status</label><select><option>Submitted</option><option>Under review</option><option>Returned for correction</option><option>Meter approved</option><option>Installed</option><option>Final approved</option></select></div></div>
+<p><button>Upload document</button> <span class="pill g">application.pdf</span></p><div class="note">Status list is a placeholder until the client supplies the DISCOM status master.</div><p><button class="pri">Save</button></p></div>`;
+
+T.pay=()=>head("Payments","Log, verify and collect every payment against the agreed terms.",'<button>Import bank statement (CSV)</button>')+`<div class="grid g4">${k("Total outstanding","₹9,85,030")}${k("Collections this month","₹1,66,320","g")}${k("Overdue receivables","₹9,85,030","r")}${k("Pending verification","7","r")}</div>
+<div class="tabs" id="ptabs" role="tablist"><a href="javascript:void 0" data-p="p1" class="on">Verification queue</a><a href="javascript:void 0" data-p="p2">Outstanding</a><a href="javascript:void 0" data-p="p3">Schedules</a><a href="javascript:void 0" data-p="p4">Receipt history</a></div>
+<div id="p1" class="pp"><p class="small">Sales logs the payment, Accounts approves or rejects it against the bank statement (FR-009, 010, 037).</p><div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Type</th><th>Amount</th><th>Mode</th><th>UTR</th><th>Age</th><th>Bank match</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">SLR-…123</button></td><td>Advance</td><td>₹45,000</td><td>NEFT</td><td>N1234…</td><td>2h</td><td><span class="pill g">Matched</span></td><td><button class="sm pri">Approve</button> <button class="sm">Reject</button></td></tr>
+<tr><td><button class="lnk">SLR-…118</button></td><td>Loan instalment 1</td><td>₹1,80,000</td><td>NEFT</td><td>HDFC9981…</td><td>1 day</td><td><span class="pill r">Not found</span></td><td><button class="sm pri">Approve</button> <button class="sm">Reject</button></td></tr></tbody></table></div></div>
+<div id="p2" class="pp" hidden><h3 style="font-size:17px">Outstanding receivables by project</h3><div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Total due</th><th>Received (verified)</th><th>Balance</th><th>Customer / Bank</th><th>Status</th></tr></thead><tbody>
+<tr><td><button class="lnk">Ramesh Kumar · 5 kW</button></td><td>₹2,70,000</td><td style="color:var(--grn)">₹0</td><td><b style="color:var(--red)">₹2,70,000</b><div class="small">Advance awaiting verification</div></td><td>₹2,70,000 / —</td><td><span class="pill a">In progress</span></td></tr>
+<tr><td><button class="lnk">Suresh Gupta · 3 kW</button></td><td>₹3,36,000</td><td style="color:var(--grn)">₹1,00,800</td><td><b style="color:var(--red)">₹2,35,200</b><div class="small">Overdue since instalment 2 date</div></td><td>₹90,000 / ₹1,80,000</td><td><span class="pill b">Loan</span></td></tr></tbody></table></div></div>
+<div id="p3" class="pp" hidden><h3 style="font-size:17px">Payment schedules</h3><p class="small">Terms are locked at sales finalization (FR-007). For loan projects the customer/bank split is updated automatically after re-confirmation (FR-018, 019).</p><div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Milestone</th><th>Payer</th><th>Amount</th><th>Due</th><th>Status</th></tr></thead><tbody>
+<tr><td rowspan="3"><button class="lnk">Suresh Gupta · 3 kW</button></td><td>Advance</td><td>Customer</td><td>₹1,00,800</td><td>On confirmation</td><td><span class="pill g">Verified</span></td></tr>
+<tr><td>Loan instalment 1</td><td>Bank</td><td>₹1,80,000</td><td>After approval</td><td><span class="pill a">Logged, awaiting Accounts</span></td></tr>
+<tr><td>Loan instalment 2</td><td>Bank</td><td>₹55,200</td><td>After completion</td><td><span class="pill">Not due</span></td></tr></tbody></table></div></div>
+<div id="p4" class="pp" hidden><h3 style="font-size:17px">Receipt history</h3><div class="tbl card" style="padding:0"><table><thead><tr><th>Date</th><th>Project</th><th>Amount</th><th>UTR</th><th>Verified by</th></tr></thead><tbody>
+<tr><td>2026-09-18</td><td>Suresh Gupta · 3 kW</td><td>₹1,00,800</td><td>N9981…</td><td>Accounts (Kavita)</td></tr></tbody></table></div></div>`;
+
+T.inc=()=>head("Incentives","Calculated automatically when a sale is finalized.")+`<div class="grid g3">${k("Total incentive payout","₹2,10,000")}${k("Partner commission","₹85,000")}${k("Average discount","2.8%")}</div>
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Owner</th><th>Discount</th><th>Incentive</th><th>Partner commission</th><th>Status</th></tr></thead><tbody>
+<tr><td>Sneha Kulkarni · 28 kW</td><td>Priya</td><td>2.0%</td><td>₹42,000</td><td>—</td><td><span class="pill g">Calculated</span></td></tr>
+<tr><td>Meera Shah · 10 kW</td><td>Anita / Sun&amp;Co</td><td>3.5%</td><td>To be confirmed</td><td>5% of order</td><td><span class="pill a">Awaiting rule</span></td></tr></tbody></table></div>`;
+
+T.portal=()=>head("Customer Portal","What the customer sees. View and confirm only.")+`<div class="phone"><h3 style="margin-top:0">Your solar project</h3><div class="stg"><span class="d">Enquiry</span><span class="d">Site visit</span><span class="d">Terms confirmed</span><span class="c">Payment check</span><span>Registration</span><span>Installation</span><span>Complete</span></div><p>Advance ₹81,000 (verifying) · Bank ₹1,62,000 · Final ₹27,000</p><button class="pri">Confirm terms</button> <button>Acknowledge completion</button></div>`;
+
+T.auto=()=>head("Automation","Routing, follow-ups, assignment and SLAs. Every run is logged and can be overridden.",'<button class="pri">New rule</button>')+tabs(["Lead routing","Work assignment","Follow-ups","SLAs","Run log"])+`
+<div class="card"><h3>Direct leads, Zone North <span class="pill g">Active</span> <span class="pill">v3</span></h3><div class="grid g3">
+<div><label>When</label><select><option>Lead created</option></select></div><div><label>If</label><input value="Source is Direct and pincode in Zone North"></div>
+<div><label>Assign by</label><select><option>Least open load</option><option>Round-robin</option><option>Territory</option></select></div>
+<div><label>Pool</label><select><option>North Sales team</option></select></div><div><label>Mode</label><select><option>Suggest only</option><option>Auto-assign</option></select></div><div><label>Fallback</label><select><option>Sales Manager queue</option></select></div></div>
+<p><button>Dry run</button> <button class="pri">Save</button></p></div>
+<div class="card"><h3>SLA: payment verification</h3><div class="grid g3"><div><label>Target</label><input value="4 hours"></div><div><label>Warn at</label><input value="80%"></div><div><label>Pause while</label><select><option>Waiting on customer</option></select></div></div><div class="note">Escalation: Accounts lead at 100%, Operations head at +4 hours.</div></div>
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Time</th><th>Rule</th><th>Result</th><th></th></tr></thead><tbody><tr><td>10:02</td><td>Direct leads, Zone North</td><td>Lead #481 assigned to Anita (load 3)</td><td><button class="sm">Reassign</button></td></tr></tbody></table></div>`;
+
+T.set=()=>head("Settings","Rules and masters are data, not code.")+`<div class="settings"><div class="sm-menu"><a class="on" href="javascript:void 0">Incentive &amp; Commission</a><a href="javascript:void 0">Masters</a><a href="javascript:void 0">Notification Matrix</a><a href="javascript:void 0">Roles &amp; Permissions</a></div>
+<div class="card"><h3>Incentive &amp; commission</h3><div class="grid g2"><div><label>Maximum sales discount (%)</label><input value="4"></div><div><label>Fixed in-house incentive (%) at discount up to 3%</label><input value="1"></div><div><label>Share of remaining margin (%)</label><input value="30"></div><div><label>Full Sales Partner commission (%)</label><input value="5"></div></div>
+<div class="note">Percentages can be overridden per user or role (FR-043). Rules for discounts between 3% and 4% will be added once confirmed.</div>
+<h3 style="margin-top:28px">Notifications</h3><div class="chk"><input type="checkbox" id="wa"><label for="wa" style="margin:0">Send stage alerts on WhatsApp</label></div><p class="small">Channels, templates and recipients per stage are set in the Notification Matrix.</p>
+<p style="margin-top:20px"><button class="pri">Save changes</button></p></div></div>`;
+
+T.init=()=>head("Project Initiation","After advance payment is approved, assign the project team (stage 10).")+`
+<div class="tbl card" style="padding:0"><table><thead><tr><th>Project</th><th>Advance</th><th>Office Executive</th><th>Loan Officer</th><th>DISCOM Officer</th><th>Project Engineer</th><th>Actions</th></tr></thead><tbody>
+<tr><td><button class="lnk">Suresh Gupta · 3 kW</button></td><td><span class="pill g">Approved</span></td><td>Rohit</td><td>Not assigned</td><td>Not assigned</td><td>Not assigned</td><td><button class="sm pri">Assign team</button></td></tr>
+<tr><td><button class="lnk">Ramesh Kumar · 5 kW</button></td><td><span class="pill a">Awaiting verification</span></td><td colspan="4" class="small">Locked until Accounts approves the advance.</td><td><button class="sm" disabled>Assign</button></td></tr></tbody></table></div>
+<div class="grid g2"><div class="card"><h3>Assign (by Sales, then Office Executive)</h3><label>Office Executive (assigned by Sales)</label><select><option>Rohit (suggested, lowest load)</option></select>
+<label>Loan Officer (only if loan required)</label><select><option>Anita</option></select><label>DISCOM Officer</label><select><option>Vikram</option></select><label>Project Engineer</label><select><option>Sana</option></select></div>
+<div class="card"><h3>Execution planning (Project Engineer)</h3><label>Site Supervisor</label><select><option>Amit</option></select><label>Project start date</label><input type="date"><div class="note">Expected end date is calculated automatically on the Planning screen.</div><p><button class="pri">Save</button></p></div></div>`;
+
+T.inst=()=>head("Installation & Completion","Execution, mandatory photos, completion and training (stages 19 and 20).")+`
+<div class="grid g2"><div class="card"><h3>Installation execution</h3><label>Execution start date *</label><input type="date"><label>Execution end date *</label><input type="date">
+<label>Site photos * (mandatory)</label><button>Upload photos</button> <span class="pill r">0 uploaded, required to save</span><p><button class="pri" disabled>Save execution</button></p></div>
+<div class="card"><h3>Completion</h3><label>Signed completion certificate</label><button>Upload certificate</button> <span class="pill a">Pending</span><label>Client training assigned to</label><select><option>Site team (assigned by Project Engineer)</option></select>
+<label>Signed training certificate</label><button>Upload certificate</button> <span class="pill a">Pending</span><div class="note">Uploading a certificate notifies the Office Executive. Final DISCOM approval is tracked under DISCOM.</div></div></div>`;
+
+const titles=Object.fromEntries(NAV);
+document.getElementById('nav').innerHTML=NAV.map(i=>`<a href="#${i[0]}" data-id="${i[0]}">${i[1]}</a>`).join('')+'<hr><a href="javascript:void 0">User Guide</a><a class="lg" href="javascript:void 0">Logout</a>';
+const $=id=>document.getElementById(id);
+const SRC={dash:"Booklet §11 KPIs · FR-030 · Addendum A03–A04",work:"Addendum FR-A03, A04",leads:"FR-001–004 · stages 1–5",visit:"FR-004–006 · stages 3–5",final:"FR-007–009, 039 · stages 6–8",projects:"FRD §5 (23 stages) · FR-030",project:"FRD §5, §7 · FR-030",init:"FR-011, 014, 015 · stage 10",plan:"FR-025–030 · stages 15–18",inst:"FR-031–033, 035 · stages 19–20 · FRD §7",gov:"FR-012 · stage 11",loan:"FR-013, 016–020, 038 · stage 12",discom:"FR-021–022, 034 · stages 13, 21",pay:"FR-007, 009–010, 018–019, 036–038 · stages 8–9, 22 · outstanding/overdue derived from payment terms",inc:"FR-039–043 · stage 23",portal:"FRD role 'Customer / Client' · Booklet §3",auto:"Addendum FR-A01–A05 (added at your request)",set:"FR-043 · Booklet §9 · open points 2, 12, 13"};
+function go(){const id=(location.hash||'#dash').slice(1);const k=T[id]?id:'dash';$('view').innerHTML=T[k]();
+ const cur=k==='project'?'projects':k;document.querySelectorAll('#nav a[data-id]').forEach(a=>a.dataset.id===cur?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current'));const ld=$('view').querySelector('.lead');if(ld&&SRC[k])ld.insertAdjacentHTML('afterend',`<p class="small" style="margin:2px 0 0">Source: ${SRC[k]}</p>`);$('main').scrollTop=0;wire()}
+function wire(){
+ if($('src'))$('src').onchange=e=>$('pt').hidden=e.target.value!=='p';
+ if($('pp')){const f=()=>{$('pp').textContent='Indicative price (placeholder formula): ₹'+((+$('kw').value||0)*(+$('pk').value)).toLocaleString('en-IN')};$('kw').oninput=$('pk').onchange=f;f()}
+ if($('vd'))$('vd').onchange=e=>$('rs').hidden=+e.target.value<=24;
+ if($('dc')){const f=()=>{const v=parseFloat($('dc').value),m=$('dm');if(isNaN(v)||v<0){m.className='note err';m.textContent='Enter a valid discount.'}else if(v>4){m.className='note err';m.textContent='Blocked: discount cannot exceed 4%.'}else{m.className='note ok';m.textContent='Within the 4% limit. Incentive preview is visible to Sales only.'}};$('dc').oninput=f;f();
+  $('cf').onclick=()=>{$('cs').className='pill g';$('cs').textContent='Confirmed';['a1','a2','a3','a4'].forEach(x=>$(x).disabled=false);$('lk').textContent='Advance payment unlocked.'}}
+ if($('sd'))$('sd').oninput=e=>{const d=new Date(e.target.value);if(isNaN(d)){$('ee').value='';return}d.setDate(d.getDate()+12);$('ee').value=d.toISOString().slice(0,10)+' (placeholder: start + 12 days)'};
+ if($('ms'))$('ms').onchange=e=>$('dr').hidden=!e.target.value.includes('delayed');
+ document.querySelectorAll('.tabs a').forEach(a=>a.onclick=()=>{a.parentNode.querySelectorAll('a').forEach(x=>x.classList.remove('on'));a.classList.add('on');if(a.dataset.p){document.querySelectorAll('.pp').forEach(p=>p.hidden=p.id!==a.dataset.p)}});
+}
+$('menu').onclick=()=>{const s=$('side');s.classList.toggle('hide');$('menu').setAttribute('aria-expanded',!s.classList.contains('hide'))};
+const ai=$('ai'),fab=$('fab');
+function tog(o){ai.classList.toggle('open',o);fab.setAttribute('aria-expanded',o);if(o)$('aq').focus();else fab.focus()}
+fab.onclick=()=>tog(!ai.classList.contains('open'));$('x').onclick=()=>tog(false);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&ai.classList.contains('open'))tog(false)});
+const ans={
+ "summar":"<b>SLR-2026-00123 · Ramesh Kumar</b><br>5 kW residential, Direct lead. Site visit found 4.5 kW feasible (shadow on east roof). Terms confirmed 20 Sep; advance ₹45,000 logged and awaiting Accounts for 26h (SLA breached). Loan not started.<br><span class='small'>Sources: site assessment, payments, SLA timer</span>",
+ "stale":"3 leads have had no contact in over 3 days:<ul><li>Meera Shah (Sun&amp;Co), 5 days</li><li>Karan Patel, 4 days</li><li>Neha Rao, 4 days</li></ul><button class='sm' onclick=\"location.hash='leads';tog(false)\">Open Leads</button> <button class='sm'>Create follow-ups</button>",
+ "risk":"2 projects look at risk: <b>SLR-…118</b> (DISCOM idle 9 days) and <b>SLR-…131</b> (dispatch delayed, no remark).<br><span class='small'>Advisory only. Nothing has been changed.</span>",
+ "draft":"<b>Draft for your review</b><br>“Hi Ramesh, thanks for your time on site. We are verifying your advance and will confirm next steps shortly.”<br><br><button class='sm'>Edit</button> <button class='sm pri'>Send via notifications</button>",
+ "waiting":"7 payments are waiting on Accounts; the oldest is SLR-…118 (1 day). <br><br><button class='sm pri'>Nudge Accounts</button> <span class='small'>You confirm before anything is sent.</span>"};
+function ask(q){const c=$('chat');$('chips').style.display='none';const u=document.createElement('div');u.className='bub u';u.textContent=q;c.appendChild(u);
+ const key=Object.keys(ans).find(k=>q.toLowerCase().includes(k));c.insertAdjacentHTML('beforeend',`<div class="bub a">${key?ans[key]:"I can help with summaries, finding leads, delay risks and drafts. Try one of the suggestions."}</div>`);c.scrollTop=c.scrollHeight}
+document.querySelectorAll('#chips button').forEach(b=>b.onclick=()=>ask(b.dataset.q));
+$('af').onsubmit=e=>{e.preventDefault();if($('aq').value.trim()){ask($('aq').value);$('aq').value=''}};
+addEventListener('hashchange',go);go();
+</script>
+</body>
+</html>

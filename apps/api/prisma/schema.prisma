@@ -1,0 +1,149 @@
+// Phase 0 foundation schema: identity, projects with stage tracking, audit and
+// configuration. Module-specific tables (payments, loan, DISCOM, material,
+// documents, automation, AI) are added in their phases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SALES
+  SALES_PARTNER
+  SITE_SUPERVISOR
+  ACCOUNTS
+  OFFICE_EXECUTIVE
+  LOAN_OFFICER
+  DISCOM_OFFICER
+  PROJECT_ENGINEER
+  STORE_MANAGER
+  CUSTOMER
+  ADMIN
+}
+
+enum LeadSource {
+  DIRECT
+  SALES_PARTNER
+}
+
+enum PartnerType {
+  LEAD_ONLY
+  FULL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  partnerId    String?
+  partner      Partner? @relation(fields: [partnerId], references: [id])
+  createdAt    DateTime @default(now())
+
+  ownedProjects Project[]           @relation("ProjectOwner")
+  assignments   ProjectAssignment[]
+}
+
+/// FR-041: Lead-only Partner and Full Sales Partner.
+model Partner {
+  id        String      @id @default(cuid())
+  name      String
+  type      PartnerType
+  createdAt DateTime    @default(now())
+  users     User[]
+  projects  Project[]
+}
+
+/// A lead becomes a project record from stage 1; the same record is carried
+/// through all 23 stages (FRD §5).
+model Project {
+  id               String     @id @default(cuid())
+  seq              Int        @unique @default(autoincrement())
+  customerName     String
+  phone            String
+  email            String?
+  address          String
+  requiredKw       Decimal    @db.Decimal(8, 2)
+  loanRequired     Boolean    @default(false)
+  loanAmount       Decimal?   @db.Decimal(12, 2)
+  projectType      String?
+  packageName      String?
+  leadSource       LeadSource
+  partnerId        String?
+  partner          Partner?   @relation(fields: [partnerId], references: [id])
+  ownerId          String
+  owner            User       @relation("ProjectOwner", fields: [ownerId], references: [id])
+  completedStages  String[]
+  skippedStages    String[]
+  supervisorAssignedAt DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  assignments ProjectAssignment[]
+  events      StageEvent[]
+
+  @@index([ownerId])
+  @@index([partnerId])
+}
+
+model ProjectAssignment {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  role       Role
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  assignedAt DateTime @default(now())
+  assignedBy String
+
+  @@unique([projectId, role])
+  @@index([userId])
+}
+
+enum StageAction {
+  COMPLETED
+  REOPENED
+}
+
+model StageEvent {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage     String
+  action    StageAction
+  actorId   String?
+  actorRole String
+  data      Json
+  at        DateTime    @default(now())
+
+  @@index([projectId, at])
+}
+
+/// Who did what, when (Booklet §10). Append-only.
+model AuditLog {
+  id       String   @id @default(cuid())
+  actorId  String?
+  action   String
+  entity   String
+  entityId String?
+  meta     Json?
+  at       DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([at])
+}
+
+/// FR-043: business rules as data (discount ceiling, percentages, durations).
+model ConfigParam {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+}

@@ -1,0 +1,268 @@
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma, type Project, type Role as DbRole } from "@prisma/client";
+import {
+  STAGE_DEFS,
+  availableStages,
+  checkCompletion,
+  currentStage,
+  initialSkipped,
+  stagesReopenedByPaymentRejection,
+  validateLeadSource,
+  type ProjectState,
+  type Role,
+  type Stage,
+  type StageInput,
+} from "@solarcrm/shared";
+import { AuditService } from "../common/audit.service";
+import type { AuthUser } from "../common/auth-context";
+import { ConfigParamsService } from "../common/config-params.service";
+import { RuleViolation } from "../common/validation";
+import { PrismaService } from "../prisma.service";
+
+export interface CreateLeadInput {
+  customerName: string;
+  phone: string;
+  email?: string;
+  address: string;
+  requiredKw: number;
+  loanRequired: boolean;
+  loanAmount?: number;
+  projectType?: string;
+  packageName?: string;
+  leadSource: "DIRECT" | "SALES_PARTNER";
+  partnerId?: string;
+}
+
+/** Roles that see every project; everyone else sees only projects they are assigned to. */
+const SEES_ALL: readonly Role[] = ["ADMIN", "SALES", "ACCOUNTS"];
+
+/** Stages whose completion assigns a person (FR-004, FR-011). */
+const ASSIGNS: Partial<Record<Stage, { field: string; role: DbRole }>> = {
+  SUPERVISOR_ASSIGNED: { field: "supervisorId", role: "SITE_SUPERVISOR" },
+  PROJECT_INITIATED: { field: "officeExecutiveId", role: "OFFICE_EXECUTIVE" },
+};
+
+/** Who may assign whom after initiation (FR-014, FR-015). */
+const ASSIGNERS: Partial<Record<DbRole, readonly Role[]>> = {
+  LOAN_OFFICER: ["OFFICE_EXECUTIVE"],
+  DISCOM_OFFICER: ["OFFICE_EXECUTIVE"],
+  PROJECT_ENGINEER: ["OFFICE_EXECUTIVE"],
+  SITE_SUPERVISOR: ["SALES", "PROJECT_ENGINEER"],
+};
+
+export const projectCode = (p: Pick<Project, "seq" | "createdAt">) =>
+  `SLR-${p.createdAt.getUTCFullYear()}-${String(p.seq).padStart(5, "0")}`;
+
+@Injectable()
+export class ProjectsService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly config: ConfigParamsService,
+  ) {}
+
+  /** Row-level scope (Booklet §10): who can see which projects. */
+  scope(user: AuthUser): Prisma.ProjectWhereInput {
+    if (SEES_ALL.includes(user.role)) return {};
+    if (user.role === "SALES_PARTNER") return { partnerId: user.partnerId ?? "__none__" };
+    return { assignments: { some: { userId: user.id } } };
+  }
+
+  async list(user: AuthUser) {
+    const rows = await this.prisma.project.findMany({
+      where: this.scope(user),
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: { owner: { select: { name: true } }, partner: { select: { name: true } } },
+    });
+    return rows.map((p) => this.toDto(p));
+  }
+
+  async get(user: AuthUser, id: string) {
+    const p = await this.prisma.project.findFirst({
+      where: { id, ...this.scope(user) },
+      include: {
+        owner: { select: { name: true } },
+        partner: { select: { name: true } },
+        assignments: { include: { user: { select: { id: true, name: true } } } },
+        events: { orderBy: { at: "desc" }, take: 50 },
+      },
+    });
+    if (!p) throw new NotFoundException("Project not found.");
+    return {
+      ...this.toDto(p),
+      assignments: p.assignments.map((a) => ({ role: a.role, userId: a.user.id, name: a.user.name, assignedAt: a.assignedAt })),
+      events: p.events.map((e) => ({ stage: e.stage, action: e.action, actorRole: e.actorRole, at: e.at, data: e.data })),
+    };
+  }
+
+  async createLead(user: AuthUser, input: CreateLeadInput) {
+    // A Sales Partner can only create leads for their own partner organisation.
+    const partnerId = user.role === "SALES_PARTNER" ? user.partnerId : input.partnerId;
+    const leadSource = user.role === "SALES_PARTNER" ? "SALES_PARTNER" : input.leadSource;
+    const errors = validateLeadSource(leadSource, partnerId);
+    if (errors.length) throw new RuleViolation(errors);
+    if (partnerId && !(await this.prisma.partner.findUnique({ where: { id: partnerId } }))) {
+      throw new RuleViolation(["Selected Sales Partner does not exist."]);
+    }
+
+    const project = await this.prisma.project.create({
+      data: {
+        customerName: input.customerName,
+        phone: input.phone,
+        email: input.email,
+        address: input.address,
+        requiredKw: new Prisma.Decimal(input.requiredKw),
+        loanRequired: input.loanRequired,
+        loanAmount: input.loanRequired && input.loanAmount ? new Prisma.Decimal(input.loanAmount) : null,
+        projectType: input.projectType,
+        packageName: input.packageName,
+        leadSource,
+        partnerId: leadSource === "SALES_PARTNER" ? partnerId : null,
+        ownerId: user.id,
+        completedStages: ["LEAD_CREATED"],
+        skippedStages: initialSkipped(input.loanRequired),
+        events: { create: { stage: "LEAD_CREATED", action: "COMPLETED", actorId: user.id, actorRole: user.role, data: {} } },
+      },
+    });
+    await this.audit.record({ actorId: user.id, action: "project.lead_created", entity: "Project", entityId: project.id });
+    return this.get(user, project.id);
+  }
+
+  async completeStage(user: AuthUser, id: string, stage: Stage, input: StageInput) {
+    const p = await this.prisma.project.findFirst({ where: { id, ...this.scope(user) } });
+    if (!p) throw new NotFoundException("Project not found.");
+
+    const state = await this.state(p);
+    const check = checkCompletion(stage, user.role, state, input);
+    if (!check.ok) throw new RuleViolation(check.errors);
+
+    const assign = ASSIGNS[stage];
+    if (assign) await this.assertAssignable(String(input[assign.field]), assign.role);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Optimistic check: fail if another request completed this stage meanwhile.
+      const updated = await tx.project.updateMany({
+        where: { id, NOT: { completedStages: { has: stage } } },
+        data: {
+          completedStages: { push: stage },
+          ...(stage === "SUPERVISOR_ASSIGNED" ? { supervisorAssignedAt: new Date() } : {}),
+        },
+      });
+      if (updated.count === 0) throw new RuleViolation([`${STAGE_DEFS[stage].label} is already done.`]);
+      if (assign) {
+        const userId = String(input[assign.field]);
+        await tx.projectAssignment.upsert({
+          where: { projectId_role: { projectId: id, role: assign.role } },
+          create: { projectId: id, role: assign.role, userId, assignedBy: user.id },
+          update: { userId, assignedBy: user.id, assignedAt: new Date() },
+        });
+      }
+      await tx.stageEvent.create({
+        data: { projectId: id, stage, action: "COMPLETED", actorId: user.id, actorRole: user.role, data: input as Prisma.InputJsonValue },
+      });
+    });
+    await this.audit.record({ actorId: user.id, action: "project.stage_completed", entity: "Project", entityId: id, meta: { stage } });
+    return this.get(user, id);
+  }
+
+  /** FR-010: Accounts rejects the logged payment; Sales must log it again. */
+  async rejectPayment(user: AuthUser, id: string, reason: string) {
+    if (user.role !== "ACCOUNTS" && user.role !== "ADMIN") throw new ForbiddenException("Only Accounts can reject payments.");
+    const p = await this.prisma.project.findFirst({ where: { id, ...this.scope(user) } });
+    if (!p) throw new NotFoundException("Project not found.");
+    const state = await this.state(p);
+    if (!availableStages(state).includes("PAYMENT_VERIFIED")) {
+      throw new RuleViolation(["There is no logged payment awaiting verification."]);
+    }
+    const reopen = stagesReopenedByPaymentRejection();
+    await this.prisma.$transaction([
+      this.prisma.project.update({
+        where: { id },
+        data: { completedStages: p.completedStages.filter((s) => !reopen.includes(s as Stage)) },
+      }),
+      ...reopen.map((stage) =>
+        this.prisma.stageEvent.create({
+          data: { projectId: id, stage, action: "REOPENED", actorId: user.id, actorRole: user.role, data: { reason } },
+        }),
+      ),
+    ]);
+    await this.audit.record({ actorId: user.id, action: "payment.rejected", entity: "Project", entityId: id, meta: { reason } });
+    return this.get(user, id);
+  }
+
+  async assign(user: AuthUser, id: string, role: DbRole, userId: string) {
+    const allowed = ASSIGNERS[role];
+    if (!allowed) throw new RuleViolation(["This role is assigned through its workflow stage."]);
+    if (user.role !== "ADMIN" && !allowed.includes(user.role)) throw new ForbiddenException("Your role cannot make this assignment.");
+    const p = await this.prisma.project.findFirst({ where: { id, ...this.scope(user) } });
+    if (!p) throw new NotFoundException("Project not found.");
+    if (role !== "SITE_SUPERVISOR" && !p.completedStages.includes("PROJECT_INITIATED")) {
+      throw new RuleViolation(["The project must be initiated before assigning this role."]);
+    }
+    await this.assertAssignable(userId, role);
+    await this.prisma.projectAssignment.upsert({
+      where: { projectId_role: { projectId: id, role } },
+      create: { projectId: id, role, userId, assignedBy: user.id },
+      update: { userId, assignedBy: user.id, assignedAt: new Date() },
+    });
+    await this.audit.record({ actorId: user.id, action: "project.assigned", entity: "Project", entityId: id, meta: { role, userId } });
+    return this.get(user, id);
+  }
+
+  private async assertAssignable(userId: string, role: DbRole) {
+    const target = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!target || !target.active || target.role !== role) {
+      throw new RuleViolation([`Select an active ${STAGE_ROLE_LABEL[role] ?? role}.`]);
+    }
+  }
+
+  async state(p: Project): Promise<ProjectState> {
+    return {
+      completed: p.completedStages as Stage[],
+      skipped: p.skippedStages as Stage[],
+      loanRequired: p.loanRequired,
+      supervisorAssignedAt: p.supervisorAssignedAt,
+      discountCeilingPct: await this.config.number("sales.discountCeilingPct", 4),
+    };
+  }
+
+  toDto(p: Project & { owner?: { name: string }; partner?: { name: string } | null }) {
+    const state: ProjectState = {
+      completed: p.completedStages as Stage[],
+      skipped: p.skippedStages as Stage[],
+      loanRequired: p.loanRequired,
+    };
+    const current = currentStage(state);
+    return {
+      id: p.id,
+      code: projectCode(p),
+      customerName: p.customerName,
+      phone: p.phone,
+      email: p.email,
+      address: p.address,
+      requiredKw: p.requiredKw.toString(),
+      loanRequired: p.loanRequired,
+      loanAmount: p.loanAmount?.toString() ?? null,
+      projectType: p.projectType,
+      packageName: p.packageName,
+      leadSource: p.leadSource,
+      partnerName: p.partner?.name ?? null,
+      ownerName: p.owner?.name ?? null,
+      completedStages: p.completedStages,
+      skippedStages: p.skippedStages,
+      currentStage: current,
+      currentStageNumber: current ? STAGE_DEFS[current].number : 24,
+      availableStages: availableStages(state),
+      createdAt: p.createdAt,
+    };
+  }
+}
+
+const STAGE_ROLE_LABEL: Partial<Record<DbRole, string>> = {
+  SITE_SUPERVISOR: "Site Supervisor",
+  OFFICE_EXECUTIVE: "Office Executive",
+  LOAN_OFFICER: "Loan Officer",
+  DISCOM_OFFICER: "DISCOM Officer",
+  PROJECT_ENGINEER: "Project Engineer",
+};

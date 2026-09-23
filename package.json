@@ -1,0 +1,19 @@
+{
+  "name": "solarcrm",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "build": "pnpm -r --filter ./packages/** build && pnpm -r --filter ./apps/** build",
+    "build:shared": "pnpm --filter @solarcrm/shared build",
+    "dev": "pnpm build:shared && pnpm -r --parallel --filter ./apps/** dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:migrate": "pnpm --filter @solarcrm/api db:migrate",
+    "db:seed": "pnpm --filter @solarcrm/api db:seed"
+  }
+}
