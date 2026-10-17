@@ -10,9 +10,14 @@ process.env.DATABASE_URL ??= "postgresql://solarcrm:solarcrm@localhost:5432/sola
 process.env.JWT_SECRET ??= "test-secret";
 process.env.AUTOMATION_TICK = "off"; // tests drive the SLA check explicitly
 process.env.NOTIFY_TICK = "off";
+process.env.INTEGRATION_TICK = "off";
+process.env.INTEGRATION_SECRET_DISCOM = "discom-test-secret";
+process.env.INTEGRATION_SECRET_PAYMENT_GATEWAY = "gateway-test-secret";
+delete process.env.ACCOUNTING_WEBHOOK_URL;
 delete process.env.NOTIFY_WEBHOOK_URL;
 
 let app;
+let bus;
 let base;
 const created = [];
 
@@ -20,9 +25,10 @@ before(async () => {
   const { NestFactory } = require("@nestjs/core");
   const cookieParser = require("cookie-parser");
   const { AppModule } = require(path.join(__dirname, "../dist/app.module"));
-  app = await NestFactory.create(AppModule, { logger: false });
+  app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
   app.use(cookieParser());
   app.setGlobalPrefix("api");
+  bus = app.get(require(path.join(__dirname, "../dist/automation/event-bus")).EventBus);
   await app.listen(0);
   base = `http://127.0.0.1:${app.getHttpServer().address().port}/api`;
 });
@@ -36,6 +42,9 @@ after(async () => {
     await prisma.automationRun.deleteMany({ where: { projectId: { in: created } } });
     await prisma.notification.deleteMany({ where: { projectId: { in: created } } });
     await prisma.aiProposedAction.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.integrationOutbox.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.integrationLog.deleteMany({ where: { projectId: { in: created } } });
+    await prisma.bankStatementLine.deleteMany({ where: { reference: { startsWith: "GW" } } });
     await prisma.bankStatementLine.deleteMany({ where: { reference: { startsWith: "RECON" } } });
     await prisma.project.deleteMany({ where: { id: { in: created } } });
     for (const pid of created) require("node:fs").rmSync(path.join(process.cwd(), "storage", pid), { recursive: true, force: true });
@@ -415,7 +424,7 @@ test("automation: routing, suggestions, follow-ups and SLA (Phase 2b)", async ()
   const sales = await login("sales@solarcrm.local");
   const admin = await login("admin@solarcrm.local");
   const accounts = await login("accounts@solarcrm.local");
-  const settle = () => new Promise((r) => setTimeout(r, 400)); // automation reacts to events asynchronously
+  const settle = () => bus.idle(); // automation reacts to events asynchronously
   const users = (await sales("GET", "/users")).body;
   const idOf = (role) => users.find((u) => u.role === role).id;
 
@@ -478,7 +487,7 @@ test("notifications and bank reconciliation (Phase 3)", async () => {
   const sales = await login("sales@solarcrm.local");
   const admin = await login("admin@solarcrm.local");
   const accounts = await login("accounts@solarcrm.local");
-  const settle = () => new Promise((r) => setTimeout(r, 400));
+  const settle = () => bus.idle();
   const users = (await sales("GET", "/users")).body;
   const idOf = (role) => users.find((u) => u.role === role).id;
 
@@ -605,4 +614,66 @@ test("AI Advisor: scoped tools, no PII to the model, confirm-to-act (Phase 3b)",
     delete process.env.ADVISOR_BASE_URL;
     fake.close();
   }
+});
+
+test("reports, exports and integrations (Phase 4)", async () => {
+  const { createHmac } = require("node:crypto");
+  const sales = await login("sales@solarcrm.local");
+  const admin = await login("admin@solarcrm.local");
+  const accounts = await login("accounts@solarcrm.local");
+  const users = (await sales("GET", "/users")).body;
+  const idOf = (role) => users.find((u) => u.role === role).id;
+  const settle = () => bus.idle();
+  const post = (connector, payload, secret) => {
+    const body = JSON.stringify(payload);
+    const sig = createHmac("sha256", secret).update(body).digest("hex");
+    return fetch(`${base}/integrations/inbound/${connector}`, { method: "POST", headers: { "content-type": "application/json", "x-solarcrm-signature": `sha256=${sig}` }, body });
+  };
+
+  // Booklet §11 KPIs are role-gated and computed
+  assert.equal((await sales("GET", "/reports/kpis")).status, 403);
+  const k = (await admin("GET", "/reports/kpis")).body;
+  assert.ok(k.leads.direct.leads >= 0 && "avgDispatchToSiteHours" in k.material && "avgApprovalDays" in k.discom);
+
+  // CSV export excludes contact details and neutralises formula injection
+  let r = await sales("POST", "/projects", { customerName: "=HYPERLINK(evil)", phone: "9800000111", email: "x@example.com", address: "Pune 411001", leadSource: "DIRECT" });
+  const id = r.body.id;
+  created.push(id);
+  const csv = await fetch(`${base}/reports/projects.csv`, { headers: { cookie: (await (async () => { const res = await fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "admin@solarcrm.local", password: process.env.SEED_PASSWORD || "Solar@123" }) }); return res.headers.get("set-cookie").split(";")[0]; })()) } }).then((x) => x.text());
+  assert.ok(csv.includes("'=HYPERLINK(evil)"));
+  assert.ok(!csv.includes("9800000111") && !csv.includes("x@example.com"));
+
+  // Drive to DISCOM application, then an inbound DISCOM webhook (Booklet §8.2)
+  const adm = (stage, input = {}) => admin("POST", `/projects/${id}/stages/${stage}/complete`, { input });
+  await adm("REQUIREMENT_CAPTURED", { requiredKw: 3, loanRequired: false, projectType: "Residential", packageName: "Standard" });
+  await adm("SUPERVISOR_ASSIGNED", { supervisorId: idOf("SITE_SUPERVISOR") });
+  await adm("VISIT_SCHEDULED", { scheduledAt: new Date(Date.now() + 3600_000).toISOString() });
+  await adm("VISIT_COMPLETED", { feasible: true, actualKw: 3 });
+  await adm("SALES_FINALIZED", { finalCost: 100000, discountPct: 2, paymentTerms: "Full" });
+  await adm("CUSTOMER_CONFIRMED");
+  const utr = `GW${Date.now()}`;
+  await adm("ADVANCE_LOGGED", { amount: 50000, mode: "UPI", utr });
+
+  // Payment gateway webhook: bad signature refused; valid one becomes bank evidence (Accounts still approves)
+  assert.equal((await post("payment-gateway", { amount: 50000, utr, status: "success" }, "wrong")).status, 401);
+  assert.equal((await post("payment-gateway", { amount: 50000, utr, status: "success" }, "gateway-test-secret")).status, 200);
+  const q = (await accounts("GET", "/payments/queue")).body.find((x) => x.utr === utr);
+  assert.equal(q.bankMatch.result, "MATCHED");
+  await accounts("POST", `/projects/${id}/stages/PAYMENT_VERIFIED/complete`, { input: { decision: "APPROVED" } });
+  await adm("PROJECT_INITIATED", { officeExecutiveId: idOf("OFFICE_EXECUTIVE") });
+  await adm("DISCOM_APPLIED", { applicationNo: "DC-WEB-1" });
+  const code = (await admin("GET", `/projects/${id}`)).body.code;
+  r = await post("discom", { project_id: code, discom_application_no: "DC-WEB-1", status: "Meter Approved", meter_number: "MTR-7" }, "discom-test-secret");
+  assert.equal(r.status, 200);
+  const p = (await admin("GET", `/projects/${id}`)).body;
+  assert.equal(p.discom.status, "METER_APPROVED");
+  assert.equal(p.discom.meterNumber, "MTR-7");
+  assert.equal((await post("discom", { project_id: code, discom_application_no: "WRONG", status: "approved" }, "discom-test-secret")).status, 404);
+
+  // Verified payment queued for one-way accounting sync; no connector → SKIPPED, logged
+  await settle();
+  assert.equal((await admin("POST", "/integrations/deliver")).status, 200);
+  const st = (await admin("GET", "/integrations/status")).body;
+  assert.ok(st.outbound[0].counts.SKIPPED >= 1);
+  assert.ok(st.log.some((l) => l.connector === "discom" && l.status === "200"));
 });

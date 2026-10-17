@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 3b complete (AI Advisor). **Next:** Phase 4 adds reporting, connectors and storage hardening.
+**Current phase:** Phase 4 complete (reports, exports, integrations). **Next:** Phase 5 covers hardening and go-live.
 
 ## System overview
 
@@ -30,6 +30,13 @@ NestJS API (:4000, modular monolith)
    │    ├─ propose_follow_up / propose_customer_message → AiProposedAction → user confirms → normal path (Task / Notification outbox)
    │    └─ per-role enablement, hourly limit, AiUsageLog (tokens, cache reads, outcome)
    ├─ Reconciliation (Booklet §6.4): statement CSV → BankStatementLine; UTR match shown in the Accounts queue
+   ├─ Reports (Booklet §11): KPIs per area over a date range, project register CSV (no contact fields, formula-safe), export audited
+   ├─ Integrations (Booklet §6–7, §10): IntegrationsService
+   │    ├─ inbound webhooks /api/integrations/inbound/:connector, HMAC-SHA256 of the raw body (x-solarcrm-signature)
+   │    │    ├─ payment-gateway → BankStatementLine (evidence for the Accounts match; Accounts still approves)
+   │    │    └─ discom → DiscomApplication status; "final approved" completes stage 21 as SYSTEM when its gates pass
+   │    ├─ outbound accounting outbox (verified payments, incentive payouts) → ACCOUNTING_WEBHOOK_URL, 5 attempts, idempotency key
+   │    └─ IntegrationLog: every inbound/outbound call, shown in Settings → Integrations
    ├─ Users / Partners: assignee pickers
    ├─ AuditService: append-only audit log
    ├─ Config (admin): rules + masters editor, per-user overrides `<key>@<userId>`, audited
@@ -89,6 +96,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | `Notification` | 3 | In-app inbox and external outbox with status, attempts, dedupe key |
 | `BankStatementImport`, `BankStatementLine` | 3 | Imported credits (unique per date, amount, reference and narration) |
 | `AiConversation`, `AiProposedAction`, `AiUsageLog` | 3b | Advisor transcript per user, proposals awaiting confirmation, usage and cost accounting |
+| `IntegrationLog` | 4 | Every connector call: direction, event, status, summary (no payload secrets) |
+| `IntegrationOutbox` | 4 | Outbound events per connector with dedupe key, attempts and status (QUEUED → SENT/FAILED/SKIPPED) |
 | `IncentiveResult` | 2 | Incentive and partner commission with the rules snapshot used (FR-039–043) |
 
 ### How a stage is completed
@@ -110,8 +119,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 2b | Automation: routing, follow-ups, assignment, SLAs | **Done** |
 | 3 | Notifications, bank-statement reconciliation | **Done** |
 | 3b | AI Advisor | **Done** |
-| 4 | Connectors, storage hardening, reporting | Next |
-| 5 | Hardening and go-live | Planned |
+| 4 | KPI reports and CSV export, signed inbound webhooks, accounting outbox, integration log, document checksums | **Done** |
+| 5 | Hardening and go-live: security review, retention, performance, user guide, UAT scripts, cutover | Next |
 
 ## Decisions and open items
 
@@ -133,6 +142,11 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - SLA clocks run in wall-clock hours. Business-hours and holiday calendars, and pause-while-waiting, are not built yet: the fields exist (`pausedAt`, `pausedMs`) but nothing sets them.
 - The SLA check uses a database-polling interval rather than BullMQ, so state lives in Postgres and survives restarts. Redis stays reserved for scale-out.
 - Staff receive in-app and email. SMS and WhatsApp go only to customers, because staff phone numbers aren't collected. There is no customer in-app channel until the customer portal has logins.
-- A payment gateway connector (Razorpay and similar) is in Phase 4. Statement CSV import is the offline reconciliation path from Booklet §6.4.
+- A gateway "success" webhook is stored as a bank statement line, so it shows as a match in the Accounts queue. It never approves a payment by itself: FR-010 keeps Accounts as the approver.
+- A DISCOM "final approved" webhook completes stage 21 only if installation is complete and a meter number is known; otherwise it records Meter approved and logs the deferral for a person to finish.
+- Unconfigured connectors are marked Not configured and their outbox rows SKIPPED, never shown as sent. Vendors are open point 14.
+- Accounting sync is one-way (CRM → accounting, Booklet §6.7).
+- Documents store a SHA-256 checksum at upload for integrity checks when files move to cloud storage.
+- KPIs are computed over projects created in the selected period. Delays come from recorded dates and events only.
 - The advisor can only read through tools that apply the same scope as the rest of the API. Finance fields appear only for Admin, Sales and Accounts; loan fields also for the Loan Officer and Office Executive. Proposals are re-checked against scope when confirmed.
 - Refusals: server-side fallbacks (`server-side-fallback-2026-07-01`, `fallbacks: "default"`) re-run a declined request on Anthropic's recommended model. If the whole chain still refuses, the exchange is dropped from the transcript and the user sees a short message.

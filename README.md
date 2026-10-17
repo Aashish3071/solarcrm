@@ -5,17 +5,19 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 3b (AI Advisor) is complete.
+- **Phase:** Phase 4 (reports, exports and integrations) is complete.
 - **Progress:**
-  - Phases 0–3: the full 23-stage workflow, documents, schedules, incentives, automation, notifications and bank reconciliation.
-  - Phase 3b, added at the client's request (addendum FR-AI01–AI06):
-    - A chat panel behind the ✦ button. It summarises projects, finds leads (by text, stage, idle time or "waiting on me"), lists at-risk projects, shows your tasks, and previews incentives through the calculator.
-    - It drafts follow-ups and customer messages as proposals. Nothing happens until you confirm, and customer messages can be edited first.
-    - Model `claude-opus-5` (override with `ADVISOR_MODEL`) with server-side refusal fallbacks and prompt caching.
-    - Tools are read-only and scoped to the user's role and projects. Phone, email, UTR and street address never reach the model.
-    - Per-role enablement, an hourly limit and a usage log.
-  - Tests: 60 unit and 9 end-to-end. The advisor test runs the real SDK and tool loop against a local fake Messages API, so it costs nothing.
-- **Next step:** Phase 4 adds KPI reports and exports (Booklet §11), an accounting one-way sync interface, a payment-gateway webhook connector, and storage hardening.
+  - Phases 0–3b: the full 23-stage workflow, documents, schedules, incentives, automation, notifications, bank reconciliation and the AI Advisor.
+  - Phase 4:
+    - **Reports** (Booklet §11): KPIs for leads and conversion by source, site visits, project schedule, payments, loan, DISCOM, material and incentives, filtered by date. The project register exports as CSV, with no contact details, formula-safe cells, and an audit entry for each export.
+    - **Signed inbound webhooks** (HMAC-SHA256) for the payment gateway and DISCOM:
+      - A gateway success becomes bank evidence for the Accounts match. Accounts still approves.
+      - A DISCOM status update changes the application, and "final approved" closes stage 21 when its gates pass.
+    - **Accounting outbox:** verified payments and incentive payouts are sent one way to `ACCOUNTING_WEBHOOK_URL`, with retries and idempotency keys.
+    - **Settings → Integrations** shows each connector's status and the call log.
+    - **Document checksums:** every upload stores a SHA-256.
+  - Tests: 60 unit and 10 end-to-end.
+- **Next step:** Phase 5 covers hardening and go-live: a security review, data-retention notes, performance checks, the in-app user guide, UAT scripts per role, and cutover notes.
 
 ## Layout
 
@@ -23,7 +25,7 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 |---|---|
 | `packages/shared` | Domain rules shared by API and web: roles, module permissions, FRD §6 validations, the 23-stage workflow state machine. Pure TypeScript, unit-tested. |
 | `apps/api` | NestJS + Prisma (PostgreSQL). Cookie JWT auth, role/module guard, row-level project scoping, audit log, stage-completion endpoints. |
-| `apps/web` | Next.js app (dashboard, leads, site visits, finalize & advance, payments, projects). Proxies `/api/*` to the API. |
+| `apps/web` | Next.js app: every workflow screen, My Work, automation, settings, reports and the AI Advisor panel. Proxies `/api/*` to the API. |
 | `docker-compose.yml` | Local Postgres and Redis. |
 | `apps/api/storage/` | Uploaded documents in development (git-ignored). Set `STORAGE_DIR` to move it. |
 
@@ -50,7 +52,10 @@ Seeded dev users (password `Solar@123`, dev only): `admin@`, `sales@`, `supervis
 | `ANTHROPIC_API_KEY` | Turns on the AI Advisor. Unset, the panel says it isn't configured. |
 | `ADVISOR_MODEL` | Advisor model (default `claude-opus-5`). |
 | `STORAGE_DIR` | Where uploaded documents are stored (local disk). |
-| `AUTOMATION_TICK_MS`, `NOTIFY_TICK_MS` | Worker intervals (defaults 60 s and 30 s). |
+| `INTEGRATION_SECRET_PAYMENT_GATEWAY`, `INTEGRATION_SECRET_DISCOM` | Shared secrets for inbound webhooks. The sender puts `sha256=<hex HMAC of the raw body>` in `x-solarcrm-signature`. Unset means the endpoint refuses calls. |
+| `ACCOUNTING_WEBHOOK_URL` | Verified payments and incentive payouts are POSTed here. Unset means the entries are marked Skipped. |
+| `ACCOUNTING_WEBHOOK_URL_SECRET` | When set, outbound accounting calls are signed the same way. |
+| `AUTOMATION_TICK_MS`, `NOTIFY_TICK_MS`, `INTEGRATION_TICK_MS` | Worker intervals (defaults 60 s, 30 s and 30 s). |
 
 ## Tests
 

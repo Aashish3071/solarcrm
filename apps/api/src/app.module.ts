@@ -16,6 +16,9 @@ import { AuditService } from "./common/audit.service";
 import { ConfigParamsService } from "./common/config-params.service";
 import { DashboardController } from "./dashboard/dashboard.controller";
 import { HealthController } from "./health.controller";
+import { IntegrationsController } from "./integrations/integrations.controller";
+import { IntegrationsService } from "./integrations/integrations.service";
+import { ReportsController } from "./reports/reports.controller";
 import { NotificationService } from "./notifications/notification.service";
 import { NotificationsController } from "./notifications/notifications.controller";
 import { PaymentsController } from "./payments/payments.controller";
@@ -39,7 +42,7 @@ import { LocalDiskStorage, StorageService } from "./storage/storage.service";
       },
     }),
   ],
-  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController, TracksController, DocumentsController, ConfigController, IncentivesController, WorkController, AutomationController, NotificationsController, AdvisorController],
-  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, EventBus, AutomationService, NotificationService, AdvisorService, { provide: StorageService, useClass: LocalDiskStorage }, { provide: APP_GUARD, useClass: AuthGuard }],
+  controllers: [HealthController, AuthController, ProjectsController, DashboardController, UsersController, PaymentsController, TracksController, DocumentsController, ConfigController, IncentivesController, WorkController, AutomationController, NotificationsController, AdvisorController, ReportsController, IntegrationsController],
+  providers: [PrismaService, AuditService, ConfigParamsService, ProjectsService, EventBus, AutomationService, NotificationService, AdvisorService, IntegrationsService, { provide: StorageService, useClass: LocalDiskStorage }, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

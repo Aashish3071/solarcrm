@@ -19,6 +19,7 @@ export const MODULES = [
   "payments",
   "incentives",
   "automation",
+  "reports",
   "settings",
 ] as const;
 
@@ -31,7 +32,7 @@ export const DEFAULT_ACCESS: Record<Role, readonly Module[]> = {
   SALES: ["dashboard", "myWork", "leads", "siteVisits", "finalize", "projects", "initiation", "payments", "incentives"],
   SALES_PARTNER: ["dashboard", "leads", "incentives"],
   SITE_SUPERVISOR: ["dashboard", "myWork", "siteVisits", "projects", "planning", "installation"],
-  ACCOUNTS: ["dashboard", "myWork", "projects", "payments"],
+  ACCOUNTS: ["dashboard", "myWork", "projects", "payments", "reports"],
   OFFICE_EXECUTIVE: ["dashboard", "myWork", "projects", "initiation", "gov", "loan", "installation"],
   LOAN_OFFICER: ["dashboard", "myWork", "projects", "loan"],
   DISCOM_OFFICER: ["dashboard", "myWork", "projects", "discom"],

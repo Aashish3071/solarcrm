@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { DOCUMENT_TYPES, UPLOAD_MAX_BYTES, UPLOAD_MIME_TYPES, canUpload, currentStage, type DocumentType, type Stage } from "@solarcrm/shared";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Response } from "express";
 import { AuditService } from "../common/audit.service";
 import { CurrentUser, RequireModule, type AuthUser } from "../common/auth-context";
@@ -58,7 +58,10 @@ export class DocumentsController {
     const storageKey = `${project.id}/${stage}/${randomUUID()}`;
     await this.storage.put(storageKey, file.buffer);
     const doc = await this.prisma.document.create({
-      data: { projectId: id, type: type as DocumentType, stage, fileName: safeName, mimeType: mime, size: file.size, storageKey, uploadedById: user.id },
+      data: {
+        projectId: id, type: type as DocumentType, stage, fileName: safeName, mimeType: mime, size: file.size, storageKey,
+        sha256: createHash("sha256").update(file.buffer).digest("hex"), uploadedById: user.id,
+      },
     });
     await this.audit.record({ actorId: user.id, action: "document.uploaded", entity: "Project", entityId: id, meta: { documentId: doc.id, type } });
     return { id: doc.id, type: doc.type, fileName: doc.fileName, size: doc.size, uploadedAt: doc.uploadedAt };

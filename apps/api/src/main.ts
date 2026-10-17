@@ -4,7 +4,8 @@ import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody lets integration webhooks verify HMAC signatures over the exact bytes received.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.use(cookieParser());
   app.setGlobalPrefix("api");
   app.enableShutdownHooks();

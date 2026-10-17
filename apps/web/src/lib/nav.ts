@@ -1,5 +1,6 @@
 import type { Module } from "@solarcrm/shared";
 import {
+  BarChart3,
   Banknote,
   FileSignature,
   FolderKanban,
@@ -44,6 +45,7 @@ export const WORK_NAV: NavItem[] = [
   { href: "/discom", label: "DISCOM", icon: Gauge, module: "discom", source: "FR-021, FR-022, FR-034 · stages 13, 21", phase: "Phase 1" },
   { href: "/payments", label: "Payments", icon: IndianRupee, module: "payments", source: "FR-009, FR-010, FR-036 – FR-038", phase: "Phase 1–2" },
   { href: "/incentives", label: "Incentives", icon: Percent, module: "incentives", source: "FR-039 – FR-043 · stage 23", phase: "Phase 2" },
+  { href: "/reports", label: "Reports", icon: BarChart3, module: "reports", source: "Booklet §11 · FRD §9", phase: "Phase 4" },
 ];
 
 export const ADMIN_NAV: NavItem[] = [

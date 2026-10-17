@@ -254,6 +254,8 @@ model Document {
   mimeType     String
   size         Int
   storageKey   String       @unique
+  /// SHA-256 of the stored bytes, for integrity checks and audit.
+  sha256       String?
   uploadedById String
   uploadedAt   DateTime     @default(now())
 
@@ -575,4 +577,40 @@ model AiUsageLog {
   at               DateTime @default(now())
 
   @@index([userId, at])
+}
+
+enum IntegrationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+/// Booklet §7 item 7: every inbound/outbound integration call with a payload summary and result.
+model IntegrationLog {
+  id        String               @id @default(cuid())
+  connector String
+  direction IntegrationDirection
+  event     String
+  projectId String?
+  status    String
+  summary   Json
+  at        DateTime             @default(now())
+
+  @@index([connector, at])
+}
+
+/// Booklet §6.7: one-way sync to accounting (and other outbound connectors) with retries.
+model IntegrationOutbox {
+  id        String         @id @default(cuid())
+  connector String
+  event     String
+  projectId String?
+  payload   Json
+  status    DeliveryStatus @default(QUEUED)
+  attempts  Int            @default(0)
+  error     String?
+  dedupeKey String         @unique
+  createdAt DateTime       @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
 }
