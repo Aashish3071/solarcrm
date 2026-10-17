@@ -98,7 +98,7 @@ export function Shell({ user, children }: { user: ShellUser; children: React.Rea
             <button className="icon-btn menu-btn" onClick={() => setNavOpen((v) => !v)} aria-label="Open navigation" aria-expanded={navOpen}>
               <Menu aria-hidden="true" />
             </button>
-            <span>{active?.label ?? "SolarCRM"}</span>
+            <span>{active?.label ?? (pathname === "/guide" ? "Guide" : "SolarCRM")}</span>
             <span aria-hidden="true">/</span>
             <span>Overview</span>
           </div>
@@ -106,7 +106,7 @@ export function Shell({ user, children }: { user: ShellUser; children: React.Rea
             <form role="search" action="/projects" style={{ display: "contents" }}>
               <input className="search" type="search" name="q" placeholder="Search name, phone or project code" aria-label="Search projects" />
             </form>
-            <button className="btn" type="button" disabled title="User guide arrives in Phase 5">? Guide</button>
+            <Link className="btn" href="/guide" aria-current={pathname === "/guide" ? "page" : undefined}>? Guide</Link>
           </div>
         </header>
         <main className="content" id="content" tabIndex={-1}>

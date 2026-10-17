@@ -1,6 +1,6 @@
 # SolarCRM Architecture
 
-**Current phase:** Phase 4 complete (reports, exports, integrations). **Next:** Phase 5 covers hardening and go-live.
+**Current phase:** Phase 5 complete. All build phases are done. **Next:** client UAT (`docs/uat.md`) and cutover (`docs/go-live.md`).
 
 ## System overview
 
@@ -9,7 +9,9 @@ Browser (Next.js web, :3100)
    │  same-origin /api/* (rewrite proxy, httpOnly session cookie)
    ▼
 NestJS API (:4000, modular monolith)
-   ├─ AuthGuard (global): JWT cookie → user → module permission check
+   ├─ configure-app.ts: security headers, trust proxy, cookies, /api prefix (shared by main.ts and tests)
+   ├─ Auth: login throttle (per email / address), constant-time unknown-email path, sign-out bumps User.sessionVersion
+   ├─ AuthGuard (global): JWT cookie → user (active, sessionVersion matches) → module permission check
    ├─ Projects: lead creation, stage completion, payment rejection, assignments
    │    └─ stage-effects.ts: per-stage DB checks + writes (site visit, terms, payments)
    ├─ Payments: Accounts queue, receipt history, outstanding/collections summary
@@ -120,9 +122,15 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 | 3 | Notifications, bank-statement reconciliation | **Done** |
 | 3b | AI Advisor | **Done** |
 | 4 | KPI reports and CSV export, signed inbound webhooks, accounting outbox, integration log, document checksums | **Done** |
-| 5 | Hardening and go-live: security review, retention, performance, user guide, UAT scripts, cutover | Next |
+| 5 | Hardening and go-live: security review and fixes, dependency audit, retention, performance, in-app Guide, UAT scripts, cutover runbook | **Done** |
+| — | Client UAT and cutover | Next |
 
 ## Decisions and open items
+
+- Sign-out signs the user out on every device, because it increments `sessionVersion`. This is simpler and safer than a token denylist.
+- The login throttle is in memory, so it applies per API instance. It needs Redis before running more than one instance.
+- The project list returns all open projects (up to 5,000) plus the 100 most recently closed. Older closed projects are reached through Reports and the CSV export.
+- Script CSP is not enforced yet because of Next.js inline bootstrap scripts. `frame-ancestors`, `object-src`, `base-uri` and `form-action` are enforced.
 
 - The FR-005 24-hour rule is measured from supervisor assignment to the scheduled visit time (to confirm).
 - ADMIN can complete any stage (to revisit with the permission matrix).

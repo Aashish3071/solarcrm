@@ -23,11 +23,9 @@ const created = [];
 
 before(async () => {
   const { NestFactory } = require("@nestjs/core");
-  const cookieParser = require("cookie-parser");
   const { AppModule } = require(path.join(__dirname, "../dist/app.module"));
   app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
-  app.use(cookieParser());
-  app.setGlobalPrefix("api");
+  require(path.join(__dirname, "../dist/configure-app")).configureApp(app);
   bus = app.get(require(path.join(__dirname, "../dist/automation/event-bus")).EventBus);
   await app.listen(0);
   base = `http://127.0.0.1:${app.getHttpServer().address().port}/api`;
@@ -76,12 +74,32 @@ async function login(email) {
     const r = await fetch(base + url, { method: "POST", headers: { cookie }, body: fd });
     return { status: r.status, body: await r.json().catch(() => null) };
   };
+  call.cookie = cookie;
   return call;
 }
 
 test("rejects unauthenticated requests", async () => {
   const r = await fetch(`${base}/projects`);
   assert.equal(r.status, 401);
+});
+
+test("hardening: login throttling, sign-out revokes the token, security headers (Phase 5)", async () => {
+  const attempt = (email) =>
+    fetch(`${base}/auth/login`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, password: "wrong" }) });
+  const ghost = `nobody-${Date.now()}@solarcrm.local`;
+  for (let i = 0; i < 5; i++) assert.equal((await attempt(ghost)).status, 401);
+  const blocked = await attempt(ghost);
+  assert.equal(blocked.status, 429);
+  assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+
+  const partner = await login("partner@solarcrm.local");
+  const me = await fetch(`${base}/auth/me`, { headers: { cookie: partner.cookie } });
+  assert.equal(me.status, 200);
+  assert.equal(me.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(me.headers.get("x-frame-options"), "DENY");
+  assert.equal(me.headers.get("x-powered-by"), null);
+  assert.equal((await partner("POST", "/auth/logout")).status, 200);
+  assert.equal((await partner("GET", "/auth/me")).status, 401); // the old cookie no longer works
 });
 
 test("wrong password is refused", async () => {

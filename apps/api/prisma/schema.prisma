@@ -42,6 +42,8 @@ model User {
   passwordHash String
   role         Role
   active       Boolean  @default(true)
+  /// Incremented on sign-out or password reset; tokens carrying an older value are refused.
+  sessionVersion Int    @default(0)
   partnerId    String?
   partner      Partner? @relation(fields: [partnerId], references: [id])
   createdAt    DateTime @default(now())
@@ -109,6 +111,7 @@ model Project {
 
   @@index([ownerId])
   @@index([partnerId])
+  @@index([createdAt])
 }
 
 model ProjectAssignment {

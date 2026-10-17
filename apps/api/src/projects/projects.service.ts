@@ -51,6 +51,19 @@ const ASSIGNERS: Partial<Record<DbRole, readonly Role[]>> = {
 export const projectCode = (p: Pick<Project, "seq" | "createdAt">) =>
   `SLR-${p.createdAt.getUTCFullYear()}-${String(p.seq).padStart(5, "0")}`;
 
+const LIST_INCLUDE = {
+  owner: { select: { name: true } },
+  partner: { select: { name: true } },
+  assignments: { select: { role: true, user: { select: { name: true } } } },
+  siteVisit: { select: { scheduledAt: true, completedAt: true, feasible: true } },
+  terms: { select: { finalCost: true, discountPct: true, confirmedAt: true } },
+  gov: { select: { status: true, registrationNo: true } },
+  loan: { select: { status: true, bank: true, approvedAmount: true, requestedAmount: true, clientReconfirmedAt: true } },
+  discom: { select: { status: true, applicationNo: true, meterNumber: true } },
+  plan: { select: { plannedStart: true, expectedEnd: true, actualStart: true, actualEnd: true, materialReadyAt: true, dispatchedAt: true, receivedAt: true } },
+  install: { select: { trainingAssigneeId: true, trainingCompletedAt: true, completedAt: true } },
+} satisfies Prisma.ProjectInclude;
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -80,23 +93,15 @@ export class ProjectsService {
   }
 
   async list(user: AuthUser) {
-    const rows = await this.prisma.project.findMany({
-      where: this.scope(user),
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      include: {
-        owner: { select: { name: true } },
-        partner: { select: { name: true } },
-        assignments: { select: { role: true, user: { select: { name: true } } } },
-        siteVisit: { select: { scheduledAt: true, completedAt: true, feasible: true } },
-        terms: { select: { finalCost: true, discountPct: true, confirmedAt: true } },
-        gov: { select: { status: true, registrationNo: true } },
-        loan: { select: { status: true, bank: true, approvedAmount: true, requestedAmount: true, clientReconfirmedAt: true } },
-        discom: { select: { status: true, applicationNo: true, meterNumber: true } },
-        plan: { select: { plannedStart: true, expectedEnd: true, actualStart: true, actualEnd: true, materialReadyAt: true, dispatchedAt: true, receivedAt: true } },
-        install: { select: { trainingAssigneeId: true, trainingCompletedAt: true, completedAt: true } },
-      },
-    });
+    // Every open project (stage queues filter this list, so none may be cut off),
+    // plus the most recently closed ones for the register. Closed = stage 23 done.
+    const scope = this.scope(user);
+    const closed: Prisma.ProjectWhereInput = { completedStages: { has: "INCENTIVE_CALCULATED" } };
+    const [open, recentClosed] = await Promise.all([
+      this.prisma.project.findMany({ where: { AND: [scope, { NOT: closed }] }, orderBy: { createdAt: "desc" }, take: 5000, include: LIST_INCLUDE }),
+      this.prisma.project.findMany({ where: { AND: [scope, closed] }, orderBy: { updatedAt: "desc" }, take: 100, include: LIST_INCLUDE }),
+    ]);
+    const rows = [...open, ...recentClosed];
     return rows.map((p) => ({
       ...this.toDto(p),
       team: Object.fromEntries(p.assignments.map((a) => [a.role, a.user.name])),

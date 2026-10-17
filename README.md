@@ -5,19 +5,21 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
 
 ## Status
 
-- **Phase:** Phase 4 (reports, exports and integrations) is complete.
+- **Phase:** Phase 5 (hardening and go-live preparation) is complete. Every planned build phase (0–5) is done.
 - **Progress:**
-  - Phases 0–3b: the full 23-stage workflow, documents, schedules, incentives, automation, notifications, bank reconciliation and the AI Advisor.
-  - Phase 4:
-    - **Reports** (Booklet §11): KPIs for leads and conversion by source, site visits, project schedule, payments, loan, DISCOM, material and incentives, filtered by date. The project register exports as CSV, with no contact details, formula-safe cells, and an audit entry for each export.
-    - **Signed inbound webhooks** (HMAC-SHA256) for the payment gateway and DISCOM:
-      - A gateway success becomes bank evidence for the Accounts match. Accounts still approves.
-      - A DISCOM status update changes the application, and "final approved" closes stage 21 when its gates pass.
-    - **Accounting outbox:** verified payments and incentive payouts are sent one way to `ACCOUNTING_WEBHOOK_URL`, with retries and idempotency keys.
-    - **Settings → Integrations** shows each connector's status and the call log.
-    - **Document checksums:** every upload stores a SHA-256.
-  - Tests: 60 unit and 10 end-to-end.
-- **Next step:** Phase 5 covers hardening and go-live: a security review, data-retention notes, performance checks, the in-app user guide, UAT scripts per role, and cutover notes.
+  - Phases 0–4: the full 23-stage workflow, documents, schedules, incentives, automation, notifications, bank reconciliation, AI Advisor, reports and integrations.
+  - Phase 5:
+    - **Security:** login throttling (5 per email or 20 per address in 15 minutes); constant-time handling of unknown emails; sign-out revokes every session (`sessionVersion`); secure cookies by default in production; production refuses a short `JWT_SECRET`; security headers on the API and web; dependency audit clean, enforced in CI.
+    - **Reliability:** event handlers drain on shutdown; tests wait for handlers instead of sleeping. The project list returns every open project, so no stage queue can drop one at volume; there is also a new index for report date ranges.
+    - **Performance:** checked with 3,000 projects. Project list 173 ms, KPI report 130 ms.
+    - **In-app Guide** (`? Guide`): each role's steps, generated from the workflow definitions, with what the server checks before each step closes.
+    - **Go-live documents:** [`docs/go-live.md`](docs/go-live.md) (security review, production environment, retention and backup, cutover and rollback) and [`docs/uat.md`](docs/uat.md) (scripts for every role).
+  - Tests: 60 unit and 11 end-to-end.
+- **Next step:** client UAT using `docs/uat.md`, decisions on the open points listed in `docs/go-live.md` §6, then cutover as in §5. Follow-ups after the pilot:
+  - Nonce-based script CSP.
+  - Cloud object storage once the vendor is chosen.
+  - Login throttle in Redis when running more than one API instance.
+  - The customer portal (customer logins).
 
 ## Layout
 
@@ -41,7 +43,7 @@ pnpm db:seed
 pnpm dev                                  # API :4000, web :3100
 ```
 
-Seeded dev users (password `Solar@123`, dev only): `admin@`, `sales@`, `supervisor@`, `accounts@`, `office@`, `loan@`, `discom@`, `engineer@`, `store@`, `partner@` — all `@solarcrm.local`.
+Seeded dev users (password `Solar@123`, dev only — change or deactivate them in production, see `docs/go-live.md`): `admin@`, `sales@`, `supervisor@`, `accounts@`, `office@`, `loan@`, `discom@`, `engineer@`, `store@`, `partner@` — all `@solarcrm.local`.
 
 ## Optional integrations (environment)
 
@@ -54,6 +56,8 @@ Seeded dev users (password `Solar@123`, dev only): `admin@`, `sales@`, `supervis
 | `STORAGE_DIR` | Where uploaded documents are stored (local disk). |
 | `INTEGRATION_SECRET_PAYMENT_GATEWAY`, `INTEGRATION_SECRET_DISCOM` | Shared secrets for inbound webhooks. The sender puts `sha256=<hex HMAC of the raw body>` in `x-solarcrm-signature`. Unset means the endpoint refuses calls. |
 | `ACCOUNTING_WEBHOOK_URL` | Verified payments and incentive payouts are POSTed here. Unset means the entries are marked Skipped. |
+| `TRUST_PROXY` | Proxy hops or subnet to trust, so login throttling and audit see the real client address (default: loopback). |
+| `COOKIE_SECURE` | Overrides the secure-cookie default (on when `NODE_ENV=production`). |
 | `ACCOUNTING_WEBHOOK_URL_SECRET` | When set, outbound accounting calls are signed the same way. |
 | `AUTOMATION_TICK_MS`, `NOTIFY_TICK_MS`, `INTEGRATION_TICK_MS` | Worker intervals (defaults 60 s, 30 s and 30 s). |
 

@@ -11,3 +11,11 @@ allowBuilds:
   "@nestjs/core": false
   sharp: true
   unrs-resolver: false
+
+# Security patches for transitive dependencies (pnpm audit, Phase 5).
+overrides:
+  multer: ">=2.4.0 <3"
+  postcss: ">=8.5.23 <9"
+  source-map-js: ">=1.2.2 <2"
+  sharp: ">=0.35.5 <0.36"
+  deepmerge-ts: ">=8.0.2 <9"

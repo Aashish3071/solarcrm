@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnApplicationShutdown } from "@nestjs/common";
 import type { Stage } from "@solarcrm/shared";
 import { EventEmitter } from "node:events";
 
@@ -13,7 +13,7 @@ export interface WorkflowEvents {
 
 /** In-process events so workflow code doesn't depend on automation (and vice versa). */
 @Injectable()
-export class EventBus {
+export class EventBus implements OnApplicationShutdown {
   private readonly emitter = new EventEmitter();
   private readonly pending = new Set<Promise<void>>();
 
@@ -29,6 +29,11 @@ export class EventBus {
         .finally(() => this.pending.delete(run));
       this.pending.add(run);
     });
+  }
+
+  /** Let in-flight automation and notification work finish before the process exits. */
+  onApplicationShutdown() {
+    return this.idle();
   }
 
   /** Resolves once every handler (and any events they emit in turn) has finished. Used on shutdown and in tests. */

@@ -24,16 +24,17 @@ export class AuthGuard implements CanActivate {
     const token = req.cookies?.[SESSION_COOKIE] ?? req.headers.authorization?.replace(/^Bearer /, "");
     if (!token) throw new UnauthorizedException();
 
-    let userId: string;
+    let claims: { sub: string; v?: number };
     try {
-      userId = (await this.jwt.verifyAsync<{ sub: string }>(token)).sub;
+      claims = await this.jwt.verifyAsync<{ sub: string; v?: number }>(token);
     } catch {
       throw new UnauthorizedException();
     }
 
     // Re-read the user each request so deactivation and role changes apply immediately.
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: claims.sub } });
     if (!user || !user.active || !isRole(user.role)) throw new UnauthorizedException();
+    if ((claims.v ?? 0) !== user.sessionVersion) throw new UnauthorizedException(); // signed out or reset
     req.user = { id: user.id, name: user.name, email: user.email, role: user.role, partnerId: user.partnerId };
 
     const modules = this.reflector.getAllAndOverride<Module[] | undefined>(REQUIRED_MODULE, targets);

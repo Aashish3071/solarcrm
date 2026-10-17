@@ -263,3 +263,18 @@ p.hint { margin: 0 0 12px; }
 .proposal small { color: var(--mute); }
 .proposal p { margin: 0; }
 .advisor-input { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
+
+/* Guide */
+.guide-list { list-style: none; margin: 0; padding: 0; }
+.guide-list li { display: flex; gap: 14px; padding: 14px 22px; border-top: 1px solid var(--line); }
+.guide-list li:first-child { border-top: 0; }
+.guide-num { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 600; color: #334155; }
+.guide-title { font-weight: 600; }
+.guide-title a { color: var(--ink); text-decoration: none; }
+.guide-title a:hover { text-decoration: underline; }
+.guide-ref { font-weight: 400; color: var(--mute); font-size: 13px; }
+.guide-list p { margin: 3px 0 0; color: #475569; font-size: 14.5px; }
+.guide-basics { margin: 0; padding: 6px 22px 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 28px; }
+.guide-basics div { padding: 10px 0; }
+.guide-basics dt { font-weight: 600; }
+.guide-basics dd { margin: 3px 0 0; color: #475569; font-size: 14.5px; }
