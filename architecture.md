@@ -127,6 +127,8 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 
 ## Decisions and open items
 
+- Internal use only: no customer portal. The `CUSTOMER` role has no modules and no customer users exist; Sales records customer confirmation (stage 7) and training acknowledgement on the customer's behalf.
+
 - Sign-out signs the user out on every device, because it increments `sessionVersion`. This is simpler and safer than a token denylist.
 - The login throttle is in memory, so it applies per API instance. It needs Redis before running more than one instance.
 - The project list returns all open projects (up to 5,000) plus the 100 most recently closed. Older closed projects are reached through Reports and the CSV export.
@@ -149,7 +151,7 @@ PostgreSQL 16 (Prisma)        Redis 7 (reserved for jobs/automation, Phase 2b)
 - Automation triggers fire when a stage opens. Suggest mode creates a task for the normal assigner. Auto mode assigns immediately; for stage-bound roles it completes the stage as SYSTEM, and all gates still apply.
 - SLA clocks run in wall-clock hours. Business-hours and holiday calendars, and pause-while-waiting, are not built yet: the fields exist (`pausedAt`, `pausedMs`) but nothing sets them.
 - The SLA check uses a database-polling interval rather than BullMQ, so state lives in Postgres and survives restarts. Redis stays reserved for scale-out.
-- Staff receive in-app and email. SMS and WhatsApp go only to customers, because staff phone numbers aren't collected. There is no customer in-app channel until the customer portal has logins.
+- Staff receive in-app and email. SMS and WhatsApp go only to customers, because staff phone numbers aren't collected. Customers never sign in (internal use only, no customer portal), so they have no in-app channel.
 - A gateway "success" webhook is stored as a bank statement line, so it shows as a match in the Accounts queue. It never approves a payment by itself: FR-010 keeps Accounts as the approver.
 - A DISCOM "final approved" webhook completes stage 21 only if installation is complete and a meter number is known; otherwise it records Meter approved and logs the deferral for a person to finish.
 - Unconfigured connectors are marked Not configured and their outbox rows SKIPPED, never shown as sent. Vendors are open point 14.

@@ -19,7 +19,6 @@ Design and plan: [`docs/`](docs/) (wireframes, traceability, workshop questions,
   - Nonce-based script CSP.
   - Cloud object storage once the vendor is chosen.
   - Login throttle in Redis when running more than one API instance.
-  - The customer portal (customer logins).
 
 ## Layout
 
@@ -74,6 +73,8 @@ pnpm typecheck
 Stages are a dependency graph, not a single status: after Project Initiated, Government Registration, Loan, DISCOM and Design open in parallel. Loan is skipped when not required. Every stage completion is checked server-side for prerequisites, the acting role, and the FRD rule for that stage (`packages/shared/src/workflow.ts`).
 
 ## Known interpretations to confirm with the client
+
+- **Internal use only:** SolarCRM is used by the organisation's staff and sales partners. There is no customer portal; Sales records customer confirmation (stage 7) and training acknowledgement (stage 20) on the customer's behalf, and customers are reached through notifications (email, SMS, WhatsApp).
 
 - **24-hour visit rule (FR-005):** measured from supervisor assignment to the scheduled visit time.
 - **Permission matrix (open point 13):** default derived from Booklet §3; ADMIN may complete any stage.

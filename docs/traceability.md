@@ -18,7 +18,7 @@ Rule: every screen must trace to the FRD (FR-xxx), the Integration Booklet, or a
 | Installation & Completion | FR-031–033, 035, FRD §7 | 19–20 | FRD |
 | Payments (verification, outstanding, schedules, receipts) | FR-007, 009, 010, 018, 019, 036–038 | 8, 9, 22 | FRD. Outstanding/overdue KPIs and Schedules tab kept at your request; derived from payment terms and loan split |
 | Incentives | FR-039–043 | 23 | FRD |
-| Customer Portal | Role "Customer / Client"; Booklet §3 | 7, 20 | FRD/Booklet |
+| ~~Customer Portal~~ | Role "Customer / Client"; Booklet §3 | 7, 20 | **Out of scope:** internal use only (client decision). Sales records confirmation and acknowledgement. |
 | Automation | FR-A01–A05 | all | Addendum (requested) |
 | AI Advisor panel | FR-AI01–AI06 | all | Addendum (requested) |
 | Settings | FR-043, Booklet §9, open points 2, 12, 13 | — | FRD/Booklet |

@@ -117,7 +117,7 @@ td{padding:15px 14px;border-bottom:1px solid var(--line);vertical-align:middle}t
 </section>
 
 <script>
-const NAV=[["dash","Dashboard"],["work","My Work"],["leads","Leads"],["visit","Site Visits"],["final","Finalize & Advance"],["projects","Projects"],["init","Project Initiation"],["plan","Planning & Material"],["inst","Installation & Completion"],["gov","Government Registration"],["loan","Loan Processing"],["discom","DISCOM"],["pay","Payments"],["inc","Incentives"],["portal","Customer Portal"],["auto","Automation"],["set","Settings"]];
+const NAV=[["dash","Dashboard"],["work","My Work"],["leads","Leads"],["visit","Site Visits"],["final","Finalize & Advance"],["projects","Projects"],["init","Project Initiation"],["plan","Planning & Material"],["inst","Installation & Completion"],["gov","Government Registration"],["loan","Loan Processing"],["discom","DISCOM"],["pay","Payments"],["inc","Incentives"],["auto","Automation"],["set","Settings"]];
 const T={};
 const step=["Lead","Requirement","Supervisor assigned","Visit scheduled","Visit done","Sales finalization","Customer confirmed","Advance logged","Payment verified","Project initiated","Gov registration","Loan","DISCOM","Site revisit & design","Planning","Ready to dispatch","Dispatched","Received at site","Installation","Completion","Final DISCOM","Payment collection","Incentive"];
 const stg=c=>`<div class="stg" role="list" aria-label="Stage ${c} of 23">${step.map((s,i)=>`<span role="listitem" class="${i<c-1?'d':i==c-1?'c':''}">${i+1}. ${s}</span>`).join('')}</div>`;
